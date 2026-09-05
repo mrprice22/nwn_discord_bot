@@ -1,0 +1,57 @@
+[Unit]
+# Two-way sync between the Discord forums and the roadmap editor
+# (python -m nwnbot serve).
+#
+# Deliberately NOT enabled by default and NOT started at boot. This unit is the
+# one thing in the repo that can write to a public player forum and to the
+# roadmap the admin uses daily, and neither has an undo. Arming it is a
+# decision, not a default. Work up to it in this order:
+#     python3 -m nwnbot doctor
+#     python3 -m nwnbot plan --fixture tests/fixtures/fake_world.json
+#     python3 -m nwnbot plan --tag-map <your tag map>
+# and only then, with NWNBOT_DRY_RUN=1 still set in the EnvironmentFile:
+#     systemctl --user enable --now nwnbot.service
+#     loginctl enable-linger james     # so it survives logout
+#
+# NWNBOT_DRY_RUN is the live/not-live switch and it lives in the environment
+# file, not here: with the default NWNBOT_DRY_RUN=1 this unit plans on every
+# forum event and every 15 minutes and writes nothing anywhere. Setting it to 0
+# is the second, separate decision. The unit deliberately does not set it, so
+# `systemctl --user restart` can never quietly arm the bot.
+#
+# The package is not installed (review item [r7]): WorkingDirectory and
+# PYTHONPATH below are what make `python3 -m nwnbot` resolve, rather than a
+# `pip install -e .` on the server.
+Description=nwnbot — Discord forum <-> roadmap sync
+Documentation=file:///var/home/james/GIT/nwn_discord_bot/plan.md
+After=network-online.target
+# Five failed starts in ten minutes means it is broken, not unlucky: stop
+# rather than hammer Discord's login endpoint.
+StartLimitIntervalSec=600
+StartLimitBurst=5
+
+[Service]
+Type=simple
+WorkingDirectory=/var/home/james/GIT/nwn_discord_bot
+Environment=PYTHONPATH=/var/home/james/GIT/nwn_discord_bot
+Environment=PYTHONUNBUFFERED=1
+# Credentials live only here, only on this machine, and are never committed.
+EnvironmentFile=/var/home/james/GIT/nwn_discord_bot/.env
+ExecStart=/usr/bin/python3 -m nwnbot serve
+# A crash is a bug to look at, not a reason to stop syncing; a bad token or a
+# missing environment file is not something restarting will fix, so back off
+# hard and give up rather than spinning against Discord's login endpoint.
+Restart=on-failure
+RestartSec=30
+# Background work with no deadline: never compete with the NWN server.
+Nice=10
+# It talks to two HTTP APIs and writes one sqlite file in WorkingDirectory.
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ReadWritePaths=/var/home/james/GIT/nwn_discord_bot
+
+[Install]
+# Present so `systemctl --user enable` has something to do. Enabling it is the
+# decision described at the top of this file; nothing in the repo does it.
+WantedBy=default.target

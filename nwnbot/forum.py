@@ -139,3 +139,77 @@ __all__ = [
     "ForumSnapshot",
     "ForumThread",
 ]
+
+
+# --------------------------------------------------------------------------
+# The write side — added by [b7-cli-runtime]
+# --------------------------------------------------------------------------
+# The planners in nwnbot.sync produce actions; something has to turn a
+# CreateThread / PostMessage / ArchiveThread into a Discord call. That
+# something is a ForumWriter. It is an *interface* on purpose: the executor in
+# nwnbot.bot never imports discord.py, so `plan`, `apply` against fakes and the
+# whole test suite run without a gateway, a token or a socket.
+#
+# The live adapter (the only thing in this repo that imports discord.py) is
+# nwnbot.bot.DiscordForumWriter. The rate-limited *batch* executor for the
+# initial editor -> Discord import is [b8-backfill]'s, not this one's.
+
+
+class ForumWriter:
+    """What an executor is allowed to do to a forum. Three calls, no more.
+
+    Deliberately narrow: there is no delete, no edit-someone-else's-message and
+    no unarchive. A thread the bot opened it can close; a player's words it can
+    only ever read.
+    """
+
+    async def create_thread(self, channel_id: str, title: str, body: str,
+                            tag_names: tuple[str, ...] = ()) -> str:
+        """Open a forum post and return its new thread id."""
+        raise NotImplementedError
+
+    async def post_message(self, thread_id: str, text: str) -> str:
+        """Post one message into an existing thread; return its message id."""
+        raise NotImplementedError
+
+    async def archive_thread(self, thread_id: str, *, locked: bool = False) -> None:
+        """Archive a thread, locking it only when merit has really been paid."""
+        raise NotImplementedError
+
+
+class RecordingForumWriter(ForumWriter):
+    """A ForumWriter that writes nothing and remembers everything.
+
+    This is what a dry run and every test use. It is not a mock bolted on from
+    outside: it is the default, so the code path that reaches Discord is the
+    *unusual* one and has to be asked for explicitly.
+    """
+
+    def __init__(self, thread_id_prefix: str = "fake-thread-") -> None:
+        self.calls: list[tuple] = []
+        self._prefix = thread_id_prefix
+        self._n = 0
+
+    async def create_thread(self, channel_id: str, title: str, body: str,
+                            tag_names: tuple[str, ...] = ()) -> str:
+        self._n += 1
+        thread_id = f"{self._prefix}{self._n}"
+        self.calls.append(("create_thread", channel_id, title, body,
+                           tuple(tag_names), thread_id))
+        return thread_id
+
+    async def post_message(self, thread_id: str, text: str) -> str:
+        self._n += 1
+        message_id = f"{self._prefix}msg-{self._n}"
+        self.calls.append(("post_message", thread_id, text, message_id))
+        return message_id
+
+    async def archive_thread(self, thread_id: str, *, locked: bool = False) -> None:
+        self.calls.append(("archive_thread", thread_id, locked))
+
+    @property
+    def kinds(self) -> tuple[str, ...]:
+        return tuple(c[0] for c in self.calls)
+
+
+__all__ += ["ForumWriter", "RecordingForumWriter"]

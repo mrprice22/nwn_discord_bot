@@ -1,0 +1,214 @@
+{
+  "_comment": [
+    "A FAKE world for `python -m nwnbot plan --fixture`. Nothing here is real:",
+    "every id is prefixed `fake-`/`example-`, the editor URL is .invalid, and",
+    "there is no token, cookie or password anywhere in this file. The real",
+    "forum tag names and channel ids are unknown ([b5-config] blocked on r2/r3),",
+    "so the placeholders below are deliberately not guesses at them."
+  ],
+  "roadmap": {
+    "version": "fake-version-1",
+    "base_hashes": {},
+    "vocab": {
+      "groups": [
+        {
+          "id": "forge",
+          "title": "Forge"
+        },
+        {
+          "id": "combat-classes",
+          "title": "Combat Classes"
+        },
+        {
+          "id": "bosses",
+          "title": "Bosses"
+        },
+        {
+          "id": "progression",
+          "title": "Progression"
+        },
+        {
+          "id": "travel",
+          "title": "Travel"
+        },
+        {
+          "id": "banking",
+          "title": "Banking"
+        },
+        {
+          "id": "wiki-tools",
+          "title": "Wiki Tools"
+        },
+        {
+          "id": "quests-areas",
+          "title": "Quests Areas"
+        },
+        {
+          "id": "items-gear",
+          "title": "Items Gear"
+        },
+        {
+          "id": "meaningwave",
+          "title": "Meaningwave"
+        },
+        {
+          "id": "economy",
+          "title": "Economy"
+        },
+        {
+          "id": "qol",
+          "title": "Qol"
+        }
+      ],
+      "players": [
+        "Testplayer"
+      ]
+    },
+    "ideas": [
+      {
+        "id": "fake-lantern-flickers-in-the-rain",
+        "title": "Lantern flickers in the rain",
+        "group": "forge",
+        "status": "planned",
+        "type": "Defect",
+        "player": "Testplayer",
+        "hidden": false,
+        "notes": "<div>The forge lantern flickers during rain.</div>"
+      },
+      {
+        "id": "fake-bank-tab-order-resets",
+        "title": "Bank tab order resets",
+        "group": "banking",
+        "status": "wip",
+        "type": "Defect",
+        "player": "Testplayer",
+        "hidden": false,
+        "discord": {
+          "thread_id": "fake-thread-linked",
+          "channel_id": "fake-channel-bugs",
+          "url": "https://discord.example.invalid/fake-thread-linked"
+        }
+      },
+      {
+        "id": "fake-unreviewed-draft",
+        "title": "An idea nobody has triaged",
+        "group": "qol",
+        "status": "planned",
+        "type": "Enhancement",
+        "player": "Testplayer",
+        "hidden": true
+      }
+    ]
+  },
+  "forum": {
+    "bot_user_id": "fake-bot-user",
+    "available_tags": {
+      "fake-channel-bugs": [
+        "example-tag-forge",
+        "example-tag-combat-classes",
+        "example-tag-bosses",
+        "example-tag-progression",
+        "example-tag-travel",
+        "example-tag-banking",
+        "example-tag-wiki-tools",
+        "example-tag-quests-areas",
+        "example-tag-items-gear",
+        "example-tag-meaningwave",
+        "example-tag-economy",
+        "example-tag-qol"
+      ],
+      "fake-channel-features": [
+        "example-tag-forge",
+        "example-tag-combat-classes",
+        "example-tag-bosses",
+        "example-tag-progression",
+        "example-tag-travel",
+        "example-tag-banking",
+        "example-tag-wiki-tools",
+        "example-tag-quests-areas",
+        "example-tag-items-gear",
+        "example-tag-meaningwave",
+        "example-tag-economy",
+        "example-tag-qol"
+      ]
+    },
+    "threads": [
+      {
+        "id": "fake-thread-new",
+        "channel_id": "fake-channel-bugs",
+        "title": "Ferry to the far shore never arrives",
+        "author_id": "fake-discord-user-1",
+        "author_name": "Testplayer",
+        "tag_names": [
+          "example-tag-travel"
+        ],
+        "url": "https://discord.example.invalid/fake-thread-new",
+        "starter": {
+          "id": "fake-msg-1",
+          "author_id": "fake-discord-user-1",
+          "author_name": "Testplayer",
+          "is_starter": true,
+          "content": "Waited ten minutes at the dock and no ferry came."
+        }
+      },
+      {
+        "id": "fake-thread-linked",
+        "channel_id": "fake-channel-bugs",
+        "title": "Bank tab order resets",
+        "author_id": "fake-discord-user-1",
+        "author_name": "Testplayer",
+        "tag_names": [
+          "example-tag-banking"
+        ],
+        "url": "https://discord.example.invalid/fake-thread-linked",
+        "starter": {
+          "id": "fake-msg-2",
+          "author_id": "fake-discord-user-1",
+          "author_name": "Testplayer",
+          "is_starter": true,
+          "content": "My bank tabs reorder themselves after a relog."
+        },
+        "messages": [
+          {
+            "id": "fake-msg-3",
+            "author_id": "fake-discord-user-2",
+            "author_name": "Othertester",
+            "content": "Same here, every time I cross a server boundary."
+          }
+        ]
+      }
+    ]
+  },
+  "context": {
+    "tag_groups": {
+      "example-tag-forge": "forge",
+      "example-tag-combat-classes": "combat-classes",
+      "example-tag-bosses": "bosses",
+      "example-tag-progression": "progression",
+      "example-tag-travel": "travel",
+      "example-tag-banking": "banking",
+      "example-tag-wiki-tools": "wiki-tools",
+      "example-tag-quests-areas": "quests-areas",
+      "example-tag-items-gear": "items-gear",
+      "example-tag-meaningwave": "meaningwave",
+      "example-tag-economy": "economy",
+      "example-tag-qol": "qol"
+    },
+    "channel_types": {
+      "fake-channel-bugs": "Defect",
+      "fake-channel-features": "Enhancement"
+    },
+    "players": {
+      "fake-discord-user-1": "Testplayer"
+    },
+    "bot_user_id": "fake-bot-user",
+    "editor_url": "https://roadmap.example.invalid",
+    "thread_url_template": "https://discord.example.invalid/{thread_id}"
+  },
+  "store": {
+    "links": {},
+    "hashes": [],
+    "reviewed": [],
+    "decisions": {}
+  }
+}
