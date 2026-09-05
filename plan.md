@@ -142,8 +142,13 @@ either side has drifted. Forum → type: bugs ⇒ `Defect`, feature requests ⇒
 Player identity map `players.json` (`discord_user_id` → roadmap player name), seeded by parsing
 the parentheticals already in `players:` (`"Sync (Shync)"`, `"Balendin (Balendin_2222)"`);
 every unmatched author is queued for review, never auto-added.
+Also add `DISCORD_BOT_USER_ID` to `.env.example`: `[b7-cli-runtime]` reads it as
+`PlanContext.bot_user_id` (loop-prevention layer one) on the live path, and left `.env.example`
+alone because this item owns the config surface.
 **Acceptance:** `doctor` reports all 12 tags mapped to all 12 groups, and exits non-zero on a
-deliberately broken mapping.
+deliberately broken mapping. (`doctor`'s broken-mapping checks — unknown group id, uncovered
+group, two tags claiming one group, wrong count, a tag absent from the forum — already ship in
+`[b7-cli-runtime]`; this item supplies the real mapping they run against.)
 
 ### `[b6-sync]` — status: done
 `nwnbot/sync.py`: `plan_discord_to_roadmap()` and `plan_roadmap_to_discord()`, both **pure**
@@ -165,7 +170,7 @@ executes inside them — that is what makes dry-run honest and the tests cheap.
 **Acceptance:** table-driven tests cover every branch above; a snapshot that is already in sync
 produces an empty action list; feeding a planner's own output back in is a no-op.
 
-### `[b7-cli-runtime]` — status: todo
+### `[b7-cli-runtime]` — status: done
 `nwnbot/cli.py`: `doctor`, `plan`, `apply`, `backfill`, `serve`. `apply` refuses without `--yes`
 *and* `NWNBOT_DRY_RUN=0`. `nwnbot/bot.py`: `discord.Client` with `message_content` + `guilds`
 intents handling `on_thread_create`, `on_message`, `on_raw_thread_update`, plus a 15-minute full
@@ -221,7 +226,9 @@ Replace every `PROVISIONAL WORDING` placeholder with the answers to `[r8]` and `
 in `nwnbot/render.py` the truncation marker (a bare `…` plus the editor URL) and
 `CDN_EXPIRY_NOTE`; in `nwnbot/sync.py` the four Discord-bound strings `STATUS_MESSAGE`,
 `MERIT_MESSAGE`, `UNLIKELY_MESSAGE`, `THREAD_BODY`, the internal `COMMENT_TEMPLATE`, the
-`LINK_SUFFIX` and the `_status_label()` map. All are single constants; the surrounding logic
+`LINK_SUFFIX` and the `_status_label()` map; in `nwnbot/cli.py` the operator-facing
+`APPLY_REFUSAL` and `BACKFILL_REFUSAL`, and in `nwnbot/bot.py` the
+`EVENT_DEBOUNCE_SECONDS` threshold (`[r12]`). All are single constants; the surrounding logic
 and its tests are shipped and settled.
 **Acceptance:** no `PROVISIONAL WORDING` comment remains in `nwnbot/`, the strings match the
 answers verbatim, and `pytest` still passes.
@@ -369,6 +376,27 @@ are implemented with the most conservative option and marked `PROVISIONAL` in th
    not a side effect of the bot's first run.
 **Answer:** _(unanswered)_
 
+### `[r12]` 2026-09-05 — Four small calls from `[b7-cli-runtime]` — status: open
+Blocks `[b10-wording]` only. All four are implemented with the conservative option and marked
+`PROVISIONAL` in the code; none can reach a player.
+1. **`EVENT_DEBOUNCE_SECONDS = 5.0`** (`nwnbot/bot.py`) — how long the worker lets a burst of
+   forum activity settle before running one cycle. A threshold plan.md never stated.
+   **Proposed:** approve 5 s. A five-message conversation then costs one reconcile instead of
+   five, and the 15-minute reconcile is the backstop if a burst is ever missed.
+2. **`APPLY_REFUSAL` and `BACKFILL_REFUSAL`** (`nwnbot/cli.py`) — terminal-only wording, no
+   blast radius. **Proposed:** approve as written, or fold into the `[r8]`/`[r11]` batch.
+3. **The unit's live switch stays split.** `systemd/nwnbot.service` ships un-enabled and
+   deliberately does *not* set `NWNBOT_DRY_RUN`, so `systemctl --user restart` can never
+   quietly arm the bot — going live stays a separate edit to the environment file.
+   **Proposed:** confirm that split, and confirm
+   `WorkingDirectory=/var/home/james/GIT/nwn_discord_bot` is the right path on the machine that
+   will actually run it.
+4. **The interim home for the tag mapping.** `serve` and a live `plan` currently require a
+   `--tag-map` JSON file and exit naming `[b5-config]`/`[r2]` rather than guessing tag names.
+   **Proposed:** confirm a JSON file is the right interim home, or say the mapping should wait
+   entirely for `[b5]`.
+**Answer:** _(unanswered)_
+
 ---
 
 ## Log
@@ -379,3 +407,4 @@ One line per completed item: id · date · commit · what shipped.
 `[b4-render]` · 2026-09-05 · 098c136 · `md_to_html`/`html_to_md` matching the editor's contenteditable shape, stdlib only; fixed point property-tested both directions over 17 real pasted-Discord blobs.
 `[b3-roadmap-client]` · 2026-09-05 · 40e81ad · Async `RoadmapClient`; forbidden writes enforced as diffs against the server baseline and raised before any request; conflict retried exactly once, never forced; 44 fake-transport tests.
 `[b6-sync]` · 2026-09-05 · d73fc87 · Both planners pure (no I/O, clock or randomness); forbidden writes unconstructible; ids mirror the editor's own slugify rules; 129 tests, in-sync plans nothing and replaying a plan is a no-op.
+`[b7-cli-runtime]` · 2026-09-05 · c8566a3 · Five subcommands, the debounced event runtime sharing one planner with the 15-minute reconcile (asserted by a test, not a convention), and an un-armed systemd user unit; `apply` needs `--yes` *and* `NWNBOT_DRY_RUN=0`.
