@@ -134,7 +134,7 @@ with a link back to the editor.
 allowed to normalize); a real pasted-Discord `notes` blob from `roadmap.yaml` survives
 `html_to_md` without markup leaking through.
 
-### `[b5-config]` — status: todo
+### `[b5-config]` — status: done
 *Unblocked 2026-09-05: `[r2]` and `[r3]` are answered.*
 `nwnbot/config.py`: env loading plus the literal tag-name → group-id dict, validated at startup
 against `vocab` from `/api/data` and against the forum's `available_tags`; fail loudly when
@@ -441,6 +441,28 @@ Blocks `[b10-wording]` only. All four are implemented with the conservative opti
    entirely for `[b5]`.
 **Answer:** _(unanswered)_
 
+### `[r13]` 2026-09-05 — Player identity, from `[b5-config]` — status: open
+Blocks nothing; the conservative option is implemented. **This one is merit money** — a wrong
+match pays the wrong player and nothing detects it afterwards.
+1. **May the bot ever resolve a player by display name?** Today: never — only an explicit
+   `discord_user_id`. A Discord id appears nowhere in `roadmap.yaml`, so `doctor
+   --seed-players` can only write the right-hand column (19 roster names, 8 with a
+   parenthetical) and leaves `discord_ids` empty; the aliases are inert, asserted by a test.
+   **Proposed:** keep never. If you want a middle ground, the honest one is that an alias match
+   becomes a review entry *naming the candidate*, still never an auto-match.
+2. **`HomelessSon (Server Admin)`** — that parenthetical is a job title, not a handle, and the
+   parser cannot tell the difference. **Proposed:** leave it an ordinary candidate; you will
+   resolve your own id by hand in one line.
+3. **`doctor --seed-players` makes an otherwise read-only command write once**, under an
+   explicit flag, to a gitignored path. **Proposed:** approve; the alternative is a sixth
+   subcommand for a one-shot bootstrap.
+4. **`NWNBOT_PLAYERS`** is a new env var (default `players.json`), mirroring `NWNBOT_DB`.
+   **Proposed:** approve.
+5. **`Companions/Henchmen` → `meaningwave`** was matched by elimination in `[r2]` and is now
+   compiled into `config.py`. **Proposed:** confirm it before `serve` ever runs — a wrong pair
+   files every companion report under the wrong group, silently.
+**Answer:** _(unanswered)_
+
 ---
 
 ## Log
@@ -452,3 +474,4 @@ One line per completed item: id · date · commit · what shipped.
 `[b3-roadmap-client]` · 2026-09-05 · 40e81ad · Async `RoadmapClient`; forbidden writes enforced as diffs against the server baseline and raised before any request; conflict retried exactly once, never forced; 44 fake-transport tests.
 `[b6-sync]` · 2026-09-05 · d73fc87 · Both planners pure (no I/O, clock or randomness); forbidden writes unconstructible; ids mirror the editor's own slugify rules; 129 tests, in-sync plans nothing and replaying a plan is a no-op.
 `[b7-cli-runtime]` · 2026-09-05 · c8566a3 · Five subcommands, the debounced event runtime sharing one planner with the 15-minute reconcile (asserted by a test, not a convention), and an un-armed systemd user unit; `apply` needs `--yes` *and* `NWNBOT_DRY_RUN=0`.
+`[b5-config]` · 2026-09-05 · 8bbbd2c · The settled 12-tag map folded into `config.py`, one drift rule set shared by `doctor` and the live path, `type` made creation-only in two places, and the silent `DISCORD_BOT_USER_ID` gap closed.
