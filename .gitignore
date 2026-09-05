@@ -1,5 +1,8 @@
-# Secrets — never commit
+# Secrets — never commit. The .env.* glob catches backups and variants
+# (.env.bak, .env.local, .env.save); .env.example is the one exception.
 .env
+.env.*
+!.env.example
 
 # Bot state and local output
 state.json
