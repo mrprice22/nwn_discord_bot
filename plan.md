@@ -35,6 +35,22 @@ and is superseded.
   echoed back verbatim. `merge_ideas()` (`roadmap-editor.py:289`) does a three-way merge and
   only refuses when the *same* idea changed on both sides. Every POST holds a flock.
   Do not reimplement this, and never hand-edit `roadmap.yaml`.
+- **Login is `POST /api/login`** (`roadmap-editor.py:2976`, public routes at `:1976`), body
+  `{"username","password"}` → `Set-Cookie: roadmap_session`. `/login` is the HTML page, not the
+  API. `401` on bad credentials, `429` when throttled, `503 {"setup": true}` when no accounts
+  exist.
+- **A save conflict is HTTP 200, not 409:** `{"ok": false, "conflict": true, "version": …}`,
+  with an `overlap: [ids]` key only for a genuine same-idea collision (`:3157` and `:3170`).
+  A validation failure is a third 200 shape, `{"ok": false, "errors": [...]}`, with no
+  `conflict` key. Only real statuses are 401/403 (route gate) and 503 (lock timeout).
+- **Writing `discord:` does not depend on `[b2-roadmap-schema]`.** `gen-roadmap.py:308` only
+  *warns* on an unrecognised idea key and `write_document` round-trips it; b2 merely silences
+  the warning. Unknown-field warnings come back in `warnings[]` on a successful save.
+- `_set_cookie` (`:2337`) marks the session cookie `Secure` unless
+  `ROADMAP_AUTH_INSECURE_COOKIE=1`. A throwaway editor on plain `http://127.0.0.1:8799` must
+  set that env var or an `aiohttp` cookie jar silently drops the session.
+- `MAX_COMMENT_LEN = 3000` (`:2049`). `/api/save` needs the `edit` permission,
+  `/api/idea-comment` needs `uat` (`:2007`, `:2013`).
 - `POST /api/idea-comment` appends `{author, date, text}` to the item's append-only, internal
   `comments` list, stamping author and date server-side. Never rendered publicly.
 - Auth: username + password → `roadmap_session` cookie. No token auth exists. `_csrf_ok()`
@@ -96,7 +112,7 @@ entry and a `BOT_FORBIDDEN` assertion in `bin/roadmap-auth-selftest.py` mirrorin
 **Acceptance:** `python3 bin/roadmap-lint.py` clean, `bin/roadmap-auth-selftest.py` passes, the
 editor starts without the import-time drift warning.
 
-### `[b3-roadmap-client]` — status: todo
+### `[b3-roadmap-client]` — status: done
 `nwnbot/roadmap.py`: async `aiohttp` `RoadmapClient` with `login`, `fetch`, `save`, `comment`,
 `new_idea`. `save()` re-fetches, applies mutations, and posts `base_version` + the server's own
 `base_hashes` verbatim — never compute fingerprints locally. On conflict, re-fetch and retry
@@ -297,6 +313,31 @@ Blocks `[b10-wording]` only; `[b4-render]` itself is shipped with placeholders m
    `[b2-roadmap-schema]`/`[r1]` only if you want it.
 **Answer:** _(unanswered)_
 
+### `[r9]` 2026-09-05 — Which roadmap account does the bot use before `[r1]` lands? — status: open
+Raised by `[b3-roadmap-client]`, and the sharpest of the three questions it produced. There is
+no `bot` role in `roadmap_auth.py:84` today, so `ROADMAP_USER` would have to be an existing
+`admin` or `dm` account — i.e. one holding `promote_shipped` and `merit`. That makes the
+client's own assertions the *only* thing standing between the bot and shipping an item or
+paying merit, rather than the second line of defence they are designed to be.
+**Proposed:** do not point the bot at any live roadmap account until `[r1]` is answered and the
+`bot` role exists. Ties directly to `[r5]`. Nothing in the code needs to change either way —
+this is about what goes in `.env`.
+**Answer:** _(unanswered)_
+
+### `[r10]` 2026-09-05 — Two smaller calls from `[b3-roadmap-client]` — status: open
+Blocks nothing; both are implemented with the conservative option and are cheap to reverse.
+1. **A no-delete assertion that is not in the item text.** `/api/save` posts the whole document,
+   so an existing idea id missing from the array is a *delete*. The client raises
+   `ForbiddenWrite` on that. It can only ever prevent a write, never cause one, and neither
+   `[b6-sync]` nor `[b9-dupes]` deletes.
+   **Proposed:** keep it; if some future item genuinely needs to delete an idea, it gets an
+   explicit opt-in argument rather than the rule being dropped.
+2. **Where a `SaveConflict` goes.** The client surfaces it and stops, as specified — it never
+   forces. Where "queue for review" actually lands is a `[b6]`/`[b7]` decision.
+   **Proposed:** `[b7-cli-runtime]`'s `apply` catches it, records it in the store, prints it in
+   the run summary and exits non-zero. No retry, no forcing.
+**Answer:** _(unanswered)_
+
 ---
 
 ## Log
@@ -305,3 +346,4 @@ One line per completed item: id · date · commit · what shipped.
 
 `[b1-scaffold]` · 2026-09-05 · b95bfff · First commit: `nwnbot/` package stubs, `tests/` smoke suite, `scraper.py` retired, requirements + `.env.example` extended.
 `[b4-render]` · 2026-09-05 · 098c136 · `md_to_html`/`html_to_md` matching the editor's contenteditable shape, stdlib only; fixed point property-tested both directions over 17 real pasted-Discord blobs.
+`[b3-roadmap-client]` · 2026-09-05 · 40e81ad · Async `RoadmapClient`; forbidden writes enforced as diffs against the server baseline and raised before any request; conflict retried exactly once, never forced; 44 fake-transport tests.
