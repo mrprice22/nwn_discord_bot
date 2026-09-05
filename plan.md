@@ -145,7 +145,7 @@ every unmatched author is queued for review, never auto-added.
 **Acceptance:** `doctor` reports all 12 tags mapped to all 12 groups, and exits non-zero on a
 deliberately broken mapping.
 
-### `[b6-sync]` — status: todo
+### `[b6-sync]` — status: done
 `nwnbot/sync.py`: `plan_discord_to_roadmap()` and `plan_roadmap_to_discord()`, both **pure**
 functions from (roadmap snapshot, forum snapshot, store) to a list of planned actions. Nothing
 executes inside them — that is what makes dry-run honest and the tests cheap.
@@ -176,7 +176,12 @@ header comment saying so (mirror `nwn_homers_lotr/systemd/llm-autopilot.service`
 **Acceptance:** `python -m nwnbot plan` against fakes prints an action list and writes nothing;
 `apply` without `--yes` exits non-zero; the unit file passes `systemd-analyze verify`.
 
-### `[b9-dupes]` — status: todo
+### `[b9-dupes]` — status: blocked
+*Blocked: the two thresholds and the auto-merge policy are unanswered — see review item `r6`.
+The seam is already in place: `plan_discord_to_roadmap()` has the hook immediately before the
+create-idea branch, `_plan_new_idea` takes `dupe_of`, and `resolve_canonical()` (transitive,
+cycle ⇒ review) and `store.DECISION_DUPE_REMOVED` shipped with `[b6-sync]`. This item is a
+scoring function and its thresholds, not a rewrite.*
 Duplicate detection for ideas raised more than once in Discord. Runs inside
 `plan_discord_to_roadmap()` **before** the create-idea branch, and never merges on its own —
 a wrong merge silently steals a player's merit credit, so every match is a proposal.
@@ -212,11 +217,14 @@ produces no further actions.
 
 ### `[b10-wording]` — status: blocked
 *Blocked: two player-visible strings are the admin's to word — see review item `r8`.*
-Replace the two `PROVISIONAL WORDING` placeholders in `nwnbot/render.py` with the answers to
-`[r8]`: the truncation marker (currently a bare `…` plus the editor URL) and `CDN_EXPIRY_NOTE`.
-Both are single constants; the surrounding logic and its tests are already shipped and settled.
-**Acceptance:** both `PROVISIONAL WORDING` comments are gone, the strings match `[r8]`'s answer
-verbatim, and `pytest` still passes.
+Replace every `PROVISIONAL WORDING` placeholder with the answers to `[r8]` and `[r11]`:
+in `nwnbot/render.py` the truncation marker (a bare `…` plus the editor URL) and
+`CDN_EXPIRY_NOTE`; in `nwnbot/sync.py` the four Discord-bound strings `STATUS_MESSAGE`,
+`MERIT_MESSAGE`, `UNLIKELY_MESSAGE`, `THREAD_BODY`, the internal `COMMENT_TEMPLATE`, the
+`LINK_SUFFIX` and the `_status_label()` map. All are single constants; the surrounding logic
+and its tests are shipped and settled.
+**Acceptance:** no `PROVISIONAL WORDING` comment remains in `nwnbot/`, the strings match the
+answers verbatim, and `pytest` still passes.
 
 ### `[b8-backfill]` — status: blocked
 *Blocked: human-gated by design; the batch must not run unattended. See review item `r4`.*
@@ -338,6 +346,29 @@ Blocks nothing; both are implemented with the conservative option and are cheap 
    the run summary and exits non-zero. No retry, no forcing.
 **Answer:** _(unanswered)_
 
+### `[r11]` 2026-09-05 — Wording and three policy calls from `[b6-sync]` — status: open
+Blocks `[b10-wording]`. Nothing here can reach a player until you run `apply --yes`; all four
+are implemented with the most conservative option and marked `PROVISIONAL` in the code.
+1. **The player-visible strings.** `STATUS_MESSAGE`, `MERIT_MESSAGE`, `UNLIKELY_MESSAGE`,
+   `THREAD_BODY`, plus the internal-only `COMMENT_TEMPLATE`, `LINK_SUFFIX` and the terse
+   `_status_label()` map over the ten statuses.
+   **Proposed:** review them as a second batch alongside `[r8]` — approve the placeholders or
+   replace them verbatim.
+2. **Where a bot-created idea starts.** Implemented as `status: planned` — the only one of the
+   ten that describes a report nobody has triaged, and not one of the admin-only three.
+   **Proposed:** approve `planned`. The alternative is a new triage status, which is a schema
+   change and would mean reopening `[r1]`.
+3. **Should the bot announce current status the first time it adopts a thread it did not
+   open?** Implemented as silent adoption: a `RecordBaseline` action takes the thread on and
+   only *later* changes are posted, so nothing reaches a player retroactively.
+   **Proposed:** keep quiet adoption — the alternative posts a status line into every existing
+   thread the first time the bot runs.
+4. **Should an archived/locked thread with no roadmap idea be backfilled into one?** Currently
+   skipped silently.
+   **Proposed:** keep skipping. Old closed threads are history, and a bulk import is your call,
+   not a side effect of the bot's first run.
+**Answer:** _(unanswered)_
+
 ---
 
 ## Log
@@ -347,3 +378,4 @@ One line per completed item: id · date · commit · what shipped.
 `[b1-scaffold]` · 2026-09-05 · b95bfff · First commit: `nwnbot/` package stubs, `tests/` smoke suite, `scraper.py` retired, requirements + `.env.example` extended.
 `[b4-render]` · 2026-09-05 · 098c136 · `md_to_html`/`html_to_md` matching the editor's contenteditable shape, stdlib only; fixed point property-tested both directions over 17 real pasted-Discord blobs.
 `[b3-roadmap-client]` · 2026-09-05 · 40e81ad · Async `RoadmapClient`; forbidden writes enforced as diffs against the server baseline and raised before any request; conflict retried exactly once, never forced; 44 fake-transport tests.
+`[b6-sync]` · 2026-09-05 · d73fc87 · Both planners pure (no I/O, clock or randomness); forbidden writes unconstructible; ids mirror the editor's own slugify rules; 129 tests, in-sync plans nothing and replaying a plan is a no-op.
