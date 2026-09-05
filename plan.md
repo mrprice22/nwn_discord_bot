@@ -107,7 +107,7 @@ add a name to `players:`, always send `Content-Type: application/json`.
 **Acceptance:** unit tests over a fake HTTP transport cover login, save, retry-on-conflict and
 every assertion; each forbidden write raises.
 
-### `[b4-render]` — status: todo
+### `[b4-render]` — status: done
 `nwnbot/render.py`: `md_to_html()` (the `<div>`-per-line shape the editor's rich-text box
 produces; bold/italic/code/links/lists only, everything else escaped, never `<script>`/`<style>`)
 and `html_to_md()` (strip Discord DOM chrome, collapse `<div><span>` nesting, keep links and
@@ -194,6 +194,14 @@ high threshold, and unrelated items in the same group score below the low one. A
 created by the planner passes `roadmap-lint.py`, and re-running the planner on the result
 produces no further actions.
 
+### `[b10-wording]` — status: blocked
+*Blocked: two player-visible strings are the admin's to word — see review item `r8`.*
+Replace the two `PROVISIONAL WORDING` placeholders in `nwnbot/render.py` with the answers to
+`[r8]`: the truncation marker (currently a bare `…` plus the editor URL) and `CDN_EXPIRY_NOTE`.
+Both are single constants; the surrounding logic and its tests are already shipped and settled.
+**Acceptance:** both `PROVISIONAL WORDING` comments are gone, the strings match `[r8]`'s answer
+verbatim, and `pytest` still passes.
+
 ### `[b8-backfill]` — status: blocked
 *Blocked: human-gated by design; the batch must not run unattended. See review item `r4`.*
 `backfill` runs `plan_roadmap_to_discord()` over open, non-hidden, non-`dupe_of` items, writes
@@ -270,6 +278,25 @@ autopilot proceeds unless you say otherwise. Two conventions the later items inh
    explicitness; changing it later means touching every async test.
 **Answer:** _(unanswered)_
 
+### `[r8]` 2026-09-05 — Two player-visible strings from `[b4-render]` — status: open
+Blocks `[b10-wording]` only; `[b4-render]` itself is shipped with placeholders marked
+`PROVISIONAL WORDING` in the code. Nothing can reach a player until you run `apply --yes`.
+1. **Truncation marker.** Discord-bound text cuts at 4000 chars (settled). The marker is not.
+   **Proposed:** keep it bare — `…`, a blank line, then the editor URL, no prose. Alternative:
+   `… (truncated — full item: <url>)`.
+2. **`CDN_EXPIRY_NOTE`.** Currently *"Note: Discord attachment links above are signed and
+   expire, so they may 404 later. The attachment was not rehosted."* It lands in the internal,
+   never-rendered `comments` list, so the blast radius is small.
+   **Proposed:** approve as-is.
+3. **Should `code`/`pre` join the roadmap sanitizer whitelist?** Neither is in
+   `roadmap_sanitize.ALLOWED_TAGS`, so `md_to_html` deliberately leaves inline code as literal
+   backticks — emitting a `<code>` tag would be unwrapped on save and break the fixed point.
+   Changing it is a `nwn_homers_lotr` edit (`bin/roadmap_sanitize.py` plus the JS mirror at
+   `roadmap-editor.py:4995`).
+   **Proposed:** leave it out; backticks read fine in a bug report. Fold into
+   `[b2-roadmap-schema]`/`[r1]` only if you want it.
+**Answer:** _(unanswered)_
+
 ---
 
 ## Log
@@ -277,3 +304,4 @@ autopilot proceeds unless you say otherwise. Two conventions the later items inh
 One line per completed item: id · date · commit · what shipped.
 
 `[b1-scaffold]` · 2026-09-05 · b95bfff · First commit: `nwnbot/` package stubs, `tests/` smoke suite, `scraper.py` retired, requirements + `.env.example` extended.
+`[b4-render]` · 2026-09-05 · 098c136 · `md_to_html`/`html_to_md` matching the editor's contenteditable shape, stdlib only; fixed point property-tested both directions over 17 real pasted-Discord blobs.
