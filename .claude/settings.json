@@ -1,0 +1,24 @@
+{
+  "hooks": {
+    "PreCompact": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/home/james/GIT/nwn_discord_bot/bin/autopilot-safety-commit pre-compact"
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/home/james/GIT/nwn_discord_bot/bin/autopilot-safety-commit session-end"
+          }
+        ]
+      }
+    ]
+  }
+}
