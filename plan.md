@@ -101,9 +101,10 @@ Delete `scraper.py`. Create the `nwnbot/` package (`__init__`, `config`, `store`
 **Acceptance:** `python -c "import nwnbot"` succeeds; `pytest` collects zero failures; `git log`
 shows one commit; `git status` clean.
 
-### `[b2-roadmap-schema]` — status: blocked
-*Blocked: touches `nwn_homers_lotr`, a service the admin uses daily. Needs human sign-off —
-see review item `r1`.*
+### `[b2-roadmap-schema]` — status: done
+*Approved and shipped 2026-09-05 as `nwn_homers_lotr` commit `806bd444435`, standalone and
+revertible on its own. **Committed locally, not pushed** — merging and restarting the editor
+are the admin's.*
 In `nwn_homers_lotr`, one standalone commit: add `"discord"` to `IDEA_FIELDS`
 (`bin/gen-roadmap.py:160`) and `FIELD_ORDER` (`bin/roadmap-editor.py:77`, after `commit`); add
 `"bot": {"view", "edit", "uat"}` to `ROLES` (`bin/roadmap_auth.py:84`) plus a `ROLE_LABELS`
@@ -262,14 +263,34 @@ Autopilot appends here and sets the blocking item to `blocked`. Never decide one
 yourself. Each entry is dated, states the question, and proposes an answer so it can be
 approved or adjusted in one line.
 
-### `[r1]` 2026-09-05 — Approve the `nwn_homers_lotr` schema change? — status: open
+### `[r1]` 2026-09-05 — Approve the `nwn_homers_lotr` schema change? — status: answered
 `[b2-roadmap-schema]` edits the roadmap editor, a service you use daily. It adds a `discord`
 field to `IDEA_FIELDS` + `FIELD_ORDER` and a `bot` role to `ROLES`.
 **Proposed:** approve as a single standalone commit, reviewed and merged before any bot code
 lands, so it can be reverted independently. The `bot` role is `{view, edit, uat}` — no
 `promote_shipped`, `merit`, `publish`, `audit_view` or `merit_view`, so the bot cannot ship an
 item or pay merit even if it tries.
-**Answer:** _(unanswered)_
+**Answer:** 2026-09-05 — approved, and shipped as `nwn_homers_lotr` commit `806bd444435`
+(committed locally on `main`, **not pushed**; merging and restarting the editor are the
+admin's). The role is `{view, edit, uat}` and denies the other 11 capabilities.
+
+The case turned out stronger than this entry assumed: `enforce_idea_permissions()`
+(`roadmap_auth.py:743`) *independently* refuses, for any caller lacking the capability, to
+create or move an item into a shipped status, to change `merit_awarded` in either direction, to
+change a paid UAT credit, or to delete a shipped or merit-paid item. That is the same list
+`[b3]`'s client refuses to *send*, so the guard is now two independent layers and the
+server-side one is beyond the bot's reach — which is what `[r9]` was worried about.
+
+Two details confirmed by reading the code rather than assuming: `edit` alone suffices to create
+ideas (`submit` is unused by `/api/save` and reserved for a future `player` role), and `uat` is
+what `/api/idea-comment` gates on. So `{view, edit, uat}` is exactly sufficient and no more.
+Beyond the entry's description, `BOT_FORBIDDEN` also got the *whitelist* equality check the
+tester tier has (`bot.caps == {"view","edit","uat"}`) plus a partition assertion that every
+`CAPS` entry is either granted or explicitly denied — that is the half that catches a future
+capability nobody remembered to forbid.
+**Verified:** `roadmap-lint.py` clean (409 ideas), `roadmap-auth-selftest.py` all checks passed,
+`FIELD_ORDER ^ IDEA_FIELDS` empty (checked by parsing both files, not by importing the editor,
+so the running service was never touched).
 
 ### `[r2]` 2026-09-05 — The 12 forum tag names and the two forum channel ids — status: answered
 Needed for `[b5-config]`; not discoverable from either repo.
@@ -324,12 +345,20 @@ keep that property or it silently downgrades an exploit from 3 merit to 1.
 always yours: read `backfill-plan.md`, then run `backfill --yes` by hand.
 **Answer:** _(unanswered)_
 
-### `[r5]` 2026-09-05 — Bot account credentials — status: open
+### `[r5]` 2026-09-05 — Bot account credentials — status: answered
 The bot needs a roadmap account (`python3 bin/roadmap-users.py add nwnbot --role bot`, after
 `r1` lands) and its password in `.env` as `ROADMAP_PASSWORD`.
 **Proposed:** you create the account and put the password in `.env`; autopilot never handles
 credentials and never commits `.env`.
-**Answer:** _(unanswered)_
+**Answer:** 2026-09-05 — the admin overrode the proposal and asked for the account and password
+to be generated directly. Done: account `nwnbot`, role `bot`, display name "Sync Bot", created
+in the live auth DB via `roadmap-users.py add --stdin` so the password never entered `argv`,
+`ps`, or a shell history. The password is 256 bits from `secrets.token_urlsafe(32)`, was never
+printed, and lives only in `.env` (now mode 600). Verified absent from every tracked file in
+both repos and from the whole of git history. `ROADMAP_BASE_URL` and `ROADMAP_USER` were set at
+the same time.
+**Rotation:** `python3 bin/roadmap-users.py passwd nwnbot` (it revokes the account's sessions);
+update `ROADMAP_PASSWORD` in `.env` to match.
 
 ### `[r6]` 2026-09-05 — Duplicate-match thresholds, and how aggressive to be — status: open
 `[b9-dupes]` needs two numbers and one policy call. A false merge steals merit credit; a missed
@@ -372,7 +401,7 @@ Blocks `[b10-wording]` only; `[b4-render]` itself is shipped with placeholders m
    `[b2-roadmap-schema]`/`[r1]` only if you want it.
 **Answer:** _(unanswered)_
 
-### `[r9]` 2026-09-05 — Which roadmap account does the bot use before `[r1]` lands? — status: open
+### `[r9]` 2026-09-05 — Which roadmap account does the bot use before `[r1]` lands? — status: answered
 Raised by `[b3-roadmap-client]`, and the sharpest of the three questions it produced. There is
 no `bot` role in `roadmap_auth.py:84` today, so `ROADMAP_USER` would have to be an existing
 `admin` or `dm` account — i.e. one holding `promote_shipped` and `merit`. That makes the
@@ -381,7 +410,10 @@ paying merit, rather than the second line of defence they are designed to be.
 **Proposed:** do not point the bot at any live roadmap account until `[r1]` is answered and the
 `bot` role exists. Ties directly to `[r5]`. Nothing in the code needs to change either way —
 this is about what goes in `.env`.
-**Answer:** _(unanswered)_
+**Answer:** 2026-09-05 — resolved as proposed, in the strong form: no live account was ever
+configured before `[r1]` landed. `.env` now holds the `nwnbot` account, which *is* the `bot`
+role, so the client's assertions are the second layer rather than the only one. The concern
+this entry raised no longer applies.
 
 ### `[r10]` 2026-09-05 — Two smaller calls from `[b3-roadmap-client]` — status: open
 Blocks nothing; both are implemented with the conservative option and are cheap to reverse.
@@ -475,3 +507,4 @@ One line per completed item: id · date · commit · what shipped.
 `[b6-sync]` · 2026-09-05 · d73fc87 · Both planners pure (no I/O, clock or randomness); forbidden writes unconstructible; ids mirror the editor's own slugify rules; 129 tests, in-sync plans nothing and replaying a plan is a no-op.
 `[b7-cli-runtime]` · 2026-09-05 · c8566a3 · Five subcommands, the debounced event runtime sharing one planner with the 15-minute reconcile (asserted by a test, not a convention), and an un-armed systemd user unit; `apply` needs `--yes` *and* `NWNBOT_DRY_RUN=0`.
 `[b5-config]` · 2026-09-05 · 8bbbd2c · The settled 12-tag map folded into `config.py`, one drift rule set shared by `doctor` and the live path, `type` made creation-only in two places, and the silent `DISCORD_BOT_USER_ID` gap closed.
+`[b2-roadmap-schema]` · 2026-09-05 · nwn_homers_lotr@806bd444435 · The `discord` idea field and a `{view, edit, uat}` `bot` role, with `BOT_FORBIDDEN` plus whitelist and partition assertions; committed there, not pushed.
