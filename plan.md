@@ -134,11 +134,23 @@ with a link back to the editor.
 allowed to normalize); a real pasted-Discord `notes` blob from `roadmap.yaml` survives
 `html_to_md` without markup leaking through.
 
-### `[b5-config]` — status: blocked
-*Blocked: needs the real forum tag names and channel ids — see review items `r2` and `r3`.*
+### `[b5-config]` — status: todo
+*Unblocked 2026-09-05: `[r2]` and `[r3]` are answered.*
 `nwnbot/config.py`: env loading plus the literal tag-name → group-id dict, validated at startup
 against `vocab` from `/api/data` and against the forum's `available_tags`; fail loudly when
 either side has drifted. Forum → type: bugs ⇒ `Defect`, feature requests ⇒ `Enhancement`.
+
+**The mapping is settled (`[r2]`) and already committed as `tag-map.json`** — fold those exact
+12 pairs into `config.py` as the literal dict, keeping `--tag-map` as the override. Both forums
+carry the same 12 tags.
+
+**There is no `Exploit` tag (`[r3]`).** The bot never writes `type: Exploit`; it is an admin
+promotion in the editor. Preserve the property that `type` is written only at creation
+(`sync.py:842`) so a promotion is never reverted — assert it if you can.
+
+**Still the admin's to do, and not code:** put the two forum channel ids in `.env` as
+`DISCORD_BUGS_FORUM_ID` / `DISCORD_FEATURES_FORUM_ID`. `doctor`'s env check fails until they
+are set, which is the intended gate — this item does not need to see them.
 Player identity map `players.json` (`discord_user_id` → roadmap player name), seeded by parsing
 the parentheticals already in `players:` (`"Sync (Shync)"`, `"Balendin (Balendin_2222)"`);
 every unmatched author is queued for review, never auto-added.
@@ -259,20 +271,52 @@ lands, so it can be reverted independently. The `bot` role is `{view, edit, uat}
 item or pay merit even if it tries.
 **Answer:** _(unanswered)_
 
-### `[r2]` 2026-09-05 — The 12 forum tag names and the two forum channel ids — status: open
+### `[r2]` 2026-09-05 — The 12 forum tag names and the two forum channel ids — status: answered
 Needed for `[b5-config]`; not discoverable from either repo.
 **Proposed:** paste the output of a `doctor --dump-tags` run (or the tag list from the forum
 settings) and the two channel ids into `.env` / `config.py`. If a tag name matches a group
 `title` closely enough the mapping can be seeded automatically, but it must be confirmed by
-hand once.
-**Answer:** _(unanswered)_
+hand once. (Note: `doctor --dump-tags` was never built — `[b7]` shipped `doctor` with
+`--fixture`, `--db`, `--tag-map`, `--cap`, `--check-roadmap` only.)
+**Answer:** 2026-09-05, admin supplied the 12 tag names directly. They are committed as
+`tag-map.json` and validate one-to-one onto the 12 groups
+(`doctor --tag-map tag-map.json` → `12 tag(s) mapped one-to-one onto all 12 groups`):
 
-### `[r3]` 2026-09-05 — Where do `Exploit` items come from? — status: open
+| forum tag | group id |
+|---|---|
+| `Forge & Crafting` | `forge` |
+| `Combat & Classes` | `combat-classes` |
+| `Bosses & Difficulty` | `bosses` |
+| `Bestiary/Achievement` | `progression` |
+| `Teleports & Travel` | `travel` |
+| `Banking & Storage` | `banking` |
+| `Wiki & Tools` | `wiki-tools` |
+| `Quests & Areas` | `quests-areas` |
+| `Items & Gear` | `items-gear` |
+| `Companions/Henchmen` | `meaningwave` |
+| `Economy & Merit` | `economy` |
+| `QualityOfLife/Buffs` | `qol` |
+
+Eleven are near-verbatim matches to the group `title`. `Companions/Henchmen` → `meaningwave`
+("Meaningwave Companions") was matched by elimination and is the one line worth a second look.
+The two **channel ids were deliberately not pasted into the repo or the conversation** — they
+are the admin's to put in `.env` as `DISCORD_BUGS_FORUM_ID` / `DISCORD_FEATURES_FORUM_ID`, and
+`doctor`'s env check already fails loudly until they are set.
+
+### `[r3]` 2026-09-05 — Where do `Exploit` items come from? — status: answered
 `type: Exploit` is worth 3 merit but neither forum implies it: bugs ⇒ `Defect`, feature requests
 ⇒ `Enhancement`.
 **Proposed:** add an `Exploit` tag to the bugs forum and let it override the type. Alternative:
 leave `Exploit` as an admin-only reclassification in the editor, and have the bot never set it.
-**Answer:** _(unanswered)_
+**Answer:** 2026-09-05 — the alternative. *"Exploits are either reported in the bugs channel or
+messaged to admin directly."* So there is **no `Exploit` tag**, both forums carry the same 12
+tags, and the bot only ever writes `type: Defect` (bugs) or `type: Enhancement` (feature
+requests). An exploit reported in `#bugs` is created as a `Defect` and the admin promotes it to
+`Exploit` in the editor; one sent by DM never reaches the bot at all.
+**Verified this is safe:** the planner writes `type` only at creation (`nwnbot/sync.py:842`) and
+the only field it ever updates on an existing idea is `group`, so a manual promotion to
+`Exploit` is never reverted by a later sync. Any future item that wants to update `type` must
+keep that property or it silently downgrades an exploit from 3 merit to 1.
 
 ### `[r4]` 2026-09-05 — Backfill approval gate — status: open
 `[b8-backfill]` would create ~100+ forum threads in one run.

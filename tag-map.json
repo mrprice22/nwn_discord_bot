@@ -1,0 +1,26 @@
+{
+  "_comment": [
+    "Forum tag name -> roadmap group id. Answers review item [r2]; the 12 tag",
+    "names are the admin's, given 2026-09-05. Tag names are not secret and live",
+    "here; the two forum channel ids are NOT in this file - they belong in .env",
+    "as DISCORD_BUGS_FORUM_ID / DISCORD_FEATURES_FORUM_ID.",
+    "Both forums carry the same 12 tags. Type comes from the forum, not the tag:",
+    "bugs => Defect, feature-requests => Enhancement. There is no Exploit tag -",
+    "see [r3]: exploits arrive as ordinary bug reports or by DM, and promoting",
+    "one to type: Exploit stays a manual editor action the bot never undoes."
+  ],
+  "tag_groups": {
+    "Forge & Crafting": "forge",
+    "Combat & Classes": "combat-classes",
+    "Bosses & Difficulty": "bosses",
+    "Bestiary/Achievement": "progression",
+    "Teleports & Travel": "travel",
+    "Banking & Storage": "banking",
+    "Wiki & Tools": "wiki-tools",
+    "Quests & Areas": "quests-areas",
+    "Items & Gear": "items-gear",
+    "Companions/Henchmen": "meaningwave",
+    "Economy & Merit": "economy",
+    "QualityOfLife/Buffs": "qol"
+  }
+}
