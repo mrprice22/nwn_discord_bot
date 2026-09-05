@@ -161,18 +161,32 @@ def load_fixture(path: str | Path) -> World:
     return World(roadmap, forum, view, context)
 
 
-def load_tag_map(path: str | Path | None) -> dict[str, str] | None:
-    """The forum-tag-name -> group-id mapping, when the admin supplies one.
+def load_tag_map(path: str | Path | None) -> dict[str, str]:
+    """The forum-tag-name -> group-id mapping in force for this run.
 
-    ``[b5-config]`` is blocked on the real tag names (review items ``r2``/
-    ``r3``), so this file is the only place a mapping can come from today and
-    nothing in this repo invents one.
+    ``--tag-map PATH`` wins; otherwise the built-in :data:`nwnbot.config.
+    TAG_GROUPS`, which is ``tag-map.json`` folded into the code by
+    ``[b5-config]``. The override exists so a renamed forum tag can be fixed
+    without a release, not so the mapping can be invented.
     """
-    if not path:
-        return None
-    raw = json.loads(Path(path).read_text(encoding="utf-8"))
-    mapping = raw.get("tag_groups", raw) if isinstance(raw, Mapping) else raw
-    return {str(k): str(v) for k, v in dict(mapping).items()}
+    return cfg.load_tag_groups(path)
+
+
+def tag_map_for(args: argparse.Namespace,
+                world: World | None) -> tuple[dict[str, str], str]:
+    """The mapping and where it came from, in precedence order.
+
+    ``--tag-map`` beats a fixture's own ``context.tag_groups`` beats the
+    built-in map. The fixture rung matters: a fake world describes a fake forum
+    with fake tag names, and checking the real 12 against it would be a
+    meaningless failure.
+    """
+    path = getattr(args, "tag_map", None)
+    if path:
+        return cfg.load_tag_groups(path), str(path)
+    if world is not None and world.context.tag_groups:
+        return dict(world.context.tag_groups), f"{args.fixture} (fixture)"
+    return dict(cfg.TAG_GROUPS), f"built in ({cfg.TAG_MAP_PATH})"
 
 
 # --------------------------------------------------------------------------
@@ -206,6 +220,10 @@ class Check:
 REQUIRED_ENV = (
     cfg.ENV_DISCORD_BOT_TOKEN,
     cfg.ENV_DISCORD_GUILD_ID,
+    # Loop-prevention layer one: messages authored by this id are skipped. It
+    # is required, not optional — unset, it defaults to "" and the layer
+    # quietly does nothing, which is the worst of the three outcomes.
+    cfg.ENV_DISCORD_BOT_USER_ID,
     cfg.ENV_DISCORD_BUGS_FORUM_ID,
     cfg.ENV_DISCORD_FEATURES_FORUM_ID,
     cfg.ENV_ROADMAP_BASE_URL,
@@ -249,49 +267,57 @@ def check_groups(snapshot: Snapshot | None) -> Check:
     if snapshot is None:
         return Check("groups", "skip",
                      "no snapshot — pass --fixture, or --check-roadmap to fetch one")
-    ids = tuple(str(g.get("id") if isinstance(g, Mapping) else g)
-                for g in (snapshot.vocab.get("groups") or ()))
-    missing = [g for g in cfg.GROUP_IDS if g not in ids]
-    extra = [g for g in ids if g not in cfg.GROUP_IDS]
-    if missing or extra:
-        return Check("groups", "fail",
-                     f"vocab drift — missing {missing or '-'}, unexpected {extra or '-'}")
+    problems = cfg.group_problems(snapshot.vocab.get("groups") or ())
+    if problems:
+        return Check("groups", "fail", "; ".join(problems))
     return Check("groups", "ok", f"all {len(cfg.GROUP_IDS)} group ids present in vocab")
 
 
 def check_tag_map(mapping: Mapping[str, str] | None,
-                  forum: ForumSnapshot | None) -> Check:
-    """``[b5-config]``'s acceptance: 12 tags to 12 groups, or a loud failure."""
+                  forum: ForumSnapshot | None,
+                  source: str = "") -> Check:
+    """``[b5-config]``'s acceptance: 12 tags to 12 groups, or a loud failure.
+
+    The rules themselves live in :func:`nwnbot.config.tag_map_problems`, which
+    is also what the live path validates with — one implementation, two
+    presentations, so ``doctor`` and ``serve`` cannot disagree about what a
+    valid mapping is.
+    """
     if mapping is None:
-        return Check("tag-map", "warn",
-                     "not configured — blocked on [b5-config] / review item [r2] "
-                     "(the real forum tag names and channel ids are unknown). "
-                     "Supply one with --tag-map to have it checked.")
-    problems: list[str] = []
-    unknown = sorted({g for g in mapping.values() if g not in cfg.GROUP_IDS})
-    if unknown:
-        problems.append(f"tags mapped to group ids that do not exist: {unknown}")
-    uncovered = [g for g in cfg.GROUP_IDS if g not in set(mapping.values())]
-    if uncovered:
-        problems.append(f"groups with no tag: {uncovered}")
-    seen: dict[str, list[str]] = {}
-    for tag, group in mapping.items():
-        seen.setdefault(group, []).append(tag)
-    doubled = {g: t for g, t in seen.items() if len(t) > 1}
-    if doubled:
-        problems.append(f"groups claimed by more than one tag: {doubled}")
-    if len(mapping) != len(cfg.GROUP_IDS):
-        problems.append(f"{len(mapping)} tag(s) mapped, expected {len(cfg.GROUP_IDS)}")
-    if forum is not None and forum.available_tags:
-        known = {name for names in forum.available_tags.values() for name in names}
-        absent = sorted(t for t in mapping if t not in known)
-        if absent:
-            problems.append(f"tags not present on either forum: {absent}")
+        return Check("tag-map", "fail", "no mapping supplied")
+    where = f" [{source}]" if source else ""
+    problems = cfg.tag_map_problems(
+        mapping,
+        available_tags=(forum.available_tags if forum is not None else None))
     if problems:
-        return Check("tag-map", "fail", "; ".join(problems))
+        return Check("tag-map", "fail", "; ".join(problems) + where)
     return Check("tag-map", "ok",
                  f"{len(mapping)} tag(s) mapped one-to-one onto all "
-                 f"{len(cfg.GROUP_IDS)} groups")
+                 f"{len(cfg.GROUP_IDS)} groups{where}")
+
+
+def check_players(path: str | Path | None) -> Check:
+    """The player identity map: how many ids are resolvable, and how many are not.
+
+    Never a hard failure — an unresolved author is a review item at plan time,
+    not a reason to refuse to start.
+    """
+    target = Path(path or cfg.DEFAULT_PLAYERS_PATH)
+    if not target.exists():
+        return Check("players", "warn",
+                     f"{target} does not exist — every Discord author will be "
+                     f"queued for review. Seed it with "
+                     f"`doctor --fixture … --seed-players {target}`.")
+    try:
+        players = cfg.PlayerMap.load(target)
+    except cfg.ConfigError as exc:
+        return Check("players", "fail", str(exc))
+    pending = len(players.unresolved_candidates)
+    status = "ok" if players.ids else "warn"
+    return Check("players", status,
+                 f"{target}: {len(players.ids)} discord id(s) mapped, "
+                 f"{pending} roster name(s) still unmatched "
+                 f"(a display name is never matched automatically)")
 
 
 async def _fetch_snapshot(env: Mapping[str, str]) -> Snapshot:  # pragma: no cover
@@ -301,6 +327,32 @@ async def _fetch_snapshot(env: Mapping[str, str]) -> Snapshot:  # pragma: no cov
     async with RoadmapClient.from_env(env) as client:
         await client.login()
         return await client.fetch()
+
+
+def _seed_players(snapshot: Snapshot | None, path: str) -> Check:
+    """Write a `players.json` skeleton from the roadmap's own ``players:`` list.
+
+    Be clear about what this can do: the roster holds player names and, in
+    eight of nineteen cases, a parenthetical that *looks* like a Discord
+    display name (and in one case is a role, "Server Admin"). A Discord user id
+    is a snowflake and appears nowhere in ``roadmap.yaml``, so seeding produces
+    an **empty** ``discord_ids`` map plus a candidate list for a human to
+    resolve. It saves typing, not identification. Existing ids are preserved.
+    """
+    if snapshot is None:
+        return Check("seed-players", "fail",
+                     "--seed-players needs a roadmap snapshot: pass --fixture "
+                     "or --check-roadmap")
+    roster = sorted(snapshot.vocab.get("players") or ())
+    if not roster:
+        return Check("seed-players", "fail", "the snapshot's vocab has no players")
+    doc = cfg.write_players_seed(path, roster)
+    with_alias = sum(1 for c in doc["candidates"] if c["alias"])
+    return Check("seed-players", "ok",
+                 f"wrote {path}: {len(doc['discord_ids'])} discord id(s) kept, "
+                 f"{len(roster)} roster name(s) listed as candidates "
+                 f"({with_alias} carry a parenthetical, {len(roster) - with_alias} "
+                 f"do not). No id was guessed; fill discord_ids by hand.")
 
 
 def cmd_doctor(args: argparse.Namespace, env: Mapping[str, str],
@@ -328,7 +380,13 @@ def cmd_doctor(args: argparse.Namespace, env: Mapping[str, str],
                         "`serve` is where the guild is touched"))
     checks.append(check_store(args.db))
     checks.append(check_groups(snapshot))
-    checks.append(check_tag_map(load_tag_map(args.tag_map), forum))
+    mapping, source = tag_map_for(args, world)
+    checks.append(check_tag_map(mapping, forum, source))
+    checks.append(check_players(getattr(args, "players", None)))
+
+    seed_to = getattr(args, "seed_players", None)
+    if seed_to:
+        checks.append(_seed_players(snapshot, seed_to))
 
     for check in checks:
         print(check.line(), file=out)
@@ -487,32 +545,29 @@ def _write_backfill(report: RunReport, context: PlanContext, path: str,
 # --------------------------------------------------------------------------
 # serve, and the live path — never exercised by the test suite
 # --------------------------------------------------------------------------
-def _channel_types(env: Mapping[str, str]) -> dict[str, str]:  # pragma: no cover
-    types: dict[str, str] = {}
-    bugs = (env.get(cfg.ENV_DISCORD_BUGS_FORUM_ID) or "").strip()
-    features = (env.get(cfg.ENV_DISCORD_FEATURES_FORUM_ID) or "").strip()
-    if bugs:
-        types[bugs] = "Defect"
-    if features:
-        types[features] = "Enhancement"
-    return types
+def _channel_types(env: Mapping[str, str]) -> dict[str, str]:
+    """Forum channel id -> item type: bugs => Defect, features => Enhancement.
+
+    The ids themselves only ever come from the environment.
+    """
+    return cfg.channel_types(env)
 
 
 def _live_context(args: argparse.Namespace,
                   env: Mapping[str, str]) -> PlanContext:  # pragma: no cover
     mapping = load_tag_map(getattr(args, "tag_map", None))
-    if mapping is None:
-        raise SystemExit(
-            "no tag -> group mapping: pass --tag-map. [b5-config] is blocked on "
-            "review item [r2] (the real forum tag names are unknown), so the bot "
-            "will not guess one.")
-    players_path = Path("players.json")
-    players = json.loads(players_path.read_text(encoding="utf-8")) \
-        if players_path.exists() else {}
+    # Startup validation, structural half: the mapping against the 12 known
+    # group ids. The other half — the mapping against the forums' real
+    # available_tags, and against the editor's own vocab — needs live snapshots
+    # and runs in `validate_against_world` on the first cycle.
+    cfg.validate_tag_map(mapping)
+    settings = cfg.Settings.from_env(env)
+    players = cfg.PlayerMap.load(getattr(args, "players", None)
+                                 or settings.players_path)
     return PlanContext(
-        tag_groups=mapping, channel_types=_channel_types(env),
-        players={str(k): str(v) for k, v in players.items()},
-        bot_user_id=str(env.get("DISCORD_BOT_USER_ID") or ""),
+        tag_groups=mapping, channel_types=settings.channel_types(),
+        players=dict(players.ids),
+        bot_user_id=settings.discord_bot_user_id,
         action_cap=args.cap if args.cap is not None else DEFAULT_ACTION_CAP,
         editor_url=(env.get(cfg.ENV_ROADMAP_BASE_URL) or "").rstrip("/"),
         thread_url_template=("https://discord.com/channels/"
@@ -554,7 +609,7 @@ def _live(args: argparse.Namespace, env: Mapping[str, str], out: Any, *,
                     source, context, store=view, roadmap_client=roadmap_client,
                     forum_writer=(DiscordForumWriter(client) if not dry_run
                                   else RecordingForumWriter()),
-                    dry_run=dry_run)
+                    dry_run=dry_run, strict_config=True)
                 return await engine.cycle(reason="cli")
             finally:
                 await client.close()
@@ -593,7 +648,8 @@ def cmd_serve(args: argparse.Namespace, env: Mapping[str, str],
             source = LiveSource(roadmap_client, None, tuple(_channel_types(env)),
                                 context.bot_user_id)
             engine = SyncEngine(source, context, store=store,
-                                roadmap_client=roadmap_client, dry_run=dry_run)
+                                roadmap_client=roadmap_client, dry_run=dry_run,
+                                strict_config=True)
             client = make_client(engine)
             source.discord_client = client
             engine.forum_writer = (DiscordForumWriter(client) if not dry_run
@@ -624,8 +680,12 @@ def build_parser() -> argparse.ArgumentParser:
         sub.add_argument("--db", metavar="PATH", default=None,
                          help="local state database (default: $NWNBOT_DB)")
         sub.add_argument("--tag-map", metavar="PATH", default=None,
-                         help="JSON forum-tag-name -> roadmap group-id mapping "
-                              "([b5-config] is blocked; nothing is guessed)")
+                         help="JSON forum-tag-name -> roadmap group-id mapping; "
+                              f"overrides the built-in map ({cfg.TAG_MAP_PATH})")
+        sub.add_argument("--players", metavar="PATH", default=None,
+                         help="player identity map "
+                              f"(default {cfg.DEFAULT_PLAYERS_PATH}); an author "
+                              "with no entry is queued for review, never guessed")
         sub.add_argument("--cap", type=int, default=None, metavar="N",
                          help=f"per-run action cap (default {DEFAULT_ACTION_CAP}); "
                               "over it, the run aborts and reports")
@@ -635,6 +695,11 @@ def build_parser() -> argparse.ArgumentParser:
     doctor.add_argument("--check-roadmap", action="store_true",
                         help="also log in to the roadmap and fetch (off by default: "
                              "doctor contacts nothing unless asked)")
+    doctor.add_argument("--seed-players", metavar="PATH", default=None,
+                        help="write a players.json skeleton from the snapshot's "
+                             "players: roster. Fills in NO discord ids — they are "
+                             "not derivable from the roadmap — and never "
+                             "overwrites ids already there")
 
     plan = subs.add_parser("plan", help="print the action list; write nothing")
     common(plan)
@@ -682,6 +747,8 @@ def main(argv: Sequence[str] | None = None, *,
     args = build_parser().parse_args(list(argv) if argv is not None else None)
     if args.db is None and args.command != "plan" and args.command != "backfill":
         args.db = env.get(cfg.ENV_NWNBOT_DB) or cfg.DEFAULT_DB_PATH
+    if getattr(args, "players", None) is None:
+        args.players = env.get(cfg.ENV_NWNBOT_PLAYERS) or cfg.DEFAULT_PLAYERS_PATH
     # Injection points for the offline `apply` tests; never set from the CLI.
     args.roadmap_client = getattr(args, "roadmap_client", None)
     args.forum_writer = getattr(args, "forum_writer", None)
@@ -702,9 +769,11 @@ __all__ = [
     "check_env",
     "check_groups",
     "check_store",
+    "check_players",
     "check_tag_map",
     "load_fixture",
     "load_tag_map",
+    "tag_map_for",
     "main",
     "read_only_view",
     "render_backfill",

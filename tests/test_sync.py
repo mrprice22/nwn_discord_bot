@@ -24,6 +24,7 @@ from nwnbot.forum import ForumMessage, ForumSnapshot, ForumThread
 from nwnbot.roadmap import ForbiddenWrite, Snapshot
 from nwnbot.store import Store, StoreView, content_hash
 from nwnbot.sync import (
+    CREATION_ONLY_FIELDS,
     DEFAULT_ACTION_CAP,
     NEW_IDEA_STATUS,
     REVIEW_ACTION_CAP,
@@ -665,3 +666,79 @@ def test_planners_never_touch_the_snapshot_they_were_given():
     plan_discord_to_roadmap(snap, forum(thread(tags=("tag-bosses",))), None, CTX)
     plan_roadmap_to_discord(snap, forum(thread()), None, CTX)
     assert snap.ideas == before
+
+
+# ==========================================================================
+# `[b5-config]` / `[r3]`: `type` is written once, at creation
+#
+# There is no Exploit forum tag. An exploit is reported in #bugs, created as a
+# Defect (1 merit), and the admin promotes it to Exploit (3 merit) by hand in
+# the editor. If any code path ever *updated* `type`, the next sync would
+# silently demote it back to 1. These tests are the property, not a comment.
+# ==========================================================================
+
+def test_type_cannot_be_updated_on_an_existing_idea():
+    with pytest.raises(ForbiddenWrite):
+        UpdateIdeaField(idea_id="forge-thing", field_name="type", value="Defect")
+
+
+def test_creation_only_fields_is_exactly_type():
+    assert CREATION_ONLY_FIELDS == frozenset({"type"})
+
+
+#: Every shape the Discord -> roadmap planner can meet with an already-linked
+#: idea. In each one the idea has been promoted to Exploit in the editor.
+PROMOTED_EXPLOIT_SCENARIOS = [
+    ("tag changed", thread(tags=("tag-bosses",))),
+    ("new reply", thread(messages=[msg("m-9", content="still happening")])),
+    ("starter post", thread(starter=msg("m-0", content="how it broke", starter=True))),
+    ("nothing changed", thread()),
+    ("archived", thread(archived=True, locked=True)),
+]
+
+
+@pytest.mark.parametrize("label,forum_thread", PROMOTED_EXPLOIT_SCENARIOS,
+                         ids=[s[0] for s in PROMOTED_EXPLOIT_SCENARIOS])
+def test_a_promoted_exploit_is_never_demoted_by_a_later_sync(label, forum_thread):
+    promoted = idea(type="Exploit", discord={"thread_id": "t-1"})
+    before, world = roadmap(promoted), forum(forum_thread)
+    view = StoreView(links={"t-1": "forge-thing"})
+    plan = plan_discord_to_roadmap(before, world, view, CTX)
+    updates = [a for a in plan if isinstance(a, UpdateIdeaField)]
+    assert all(a.field_name == "group" for a in updates), \
+        f"{label}: the only field an existing idea ever gets is `group`"
+    # And the promotion really does survive applying the plan.
+    after, _, _ = simulate(plan, before, world, view, CTX)
+    assert after.by_id["forge-thing"]["type"] == "Exploit"
+
+
+def test_group_is_the_only_field_either_planner_ever_updates():
+    """A property over both planners, not a claim about one branch.
+
+    Anything that starts updating a second field on an existing idea fails
+    here, which is the guard [r3] asked for: `type` is the field whose update
+    would cost a player two merit.
+    """
+    promoted = idea(type="Exploit", discord={"thread_id": "t-1"},
+                    status="wip", merit_awarded=False)
+    unlinked = idea("bosses-thing", group="bosses", type="Enhancement",
+                    status="unlikely")
+    snapshot = roadmap(promoted, unlinked)
+    world = forum(thread(tags=("tag-bosses",),
+                         messages=[msg("m-3", content="another report")]))
+    view = StoreView(links={"t-1": "forge-thing"})
+    fields = set()
+    for plan in (plan_discord_to_roadmap(snapshot, world, view, CTX),
+                 plan_roadmap_to_discord(snapshot, world, view, CTX)):
+        fields |= {a.field_name for a in plan if isinstance(a, UpdateIdeaField)}
+    assert fields <= {"group"}, f"unexpected field update(s): {sorted(fields)}"
+
+
+def test_the_bot_only_ever_creates_defects_and_enhancements():
+    """`type` comes from the forum: bugs => Defect, features => Enhancement."""
+    for channel, expected in ((BUGS, "Defect"), (FEATURES, "Enhancement")):
+        plan = plan_discord_to_roadmap(
+            roadmap(), forum(thread(channel_id=channel)), None, CTX)
+        created = [a for a in plan if isinstance(a, CreateIdea)]
+        assert [a.idea["type"] for a in created] == [expected]
+        assert all(a.idea["type"] != "Exploit" for a in created)

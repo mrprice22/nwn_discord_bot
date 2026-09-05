@@ -40,6 +40,7 @@ FIXTURE = REPO / "tests" / "fixtures" / "fake_world.json"
 FAKE_ENV = {
     "DISCORD_BOT_TOKEN": "fake-token-not-a-real-one",
     "DISCORD_GUILD_ID": "fake-guild",
+    "DISCORD_BOT_USER_ID": "fake-bot-user",
     "DISCORD_BUGS_FORUM_ID": "fake-channel-bugs",
     "DISCORD_FEATURES_FORUM_ID": "fake-channel-features",
     "ROADMAP_BASE_URL": "https://roadmap.example.invalid",
@@ -329,12 +330,40 @@ def test_doctor_passes_with_a_complete_fake_world(tmp_path):
     assert "[ok  ] groups" in out.text
 
 
-def test_doctor_says_the_tag_map_is_blocked_rather_than_inventing_one(tmp_path):
+def test_doctor_uses_the_built_in_tag_map_when_no_file_is_given(tmp_path):
+    """`[b5-config]`: the mapping is in the code, not waiting on a file."""
     out = Out()
-    cli.main(["doctor", "--fixture", str(FIXTURE), "--db", str(tmp_path / "s.db")],
-             env=FAKE_ENV, out=out)
-    assert "[warn] tag-map" in out.text
-    assert "[b5-config]" in out.text and "[r2]" in out.text
+    code = cli.main(["doctor", "--db", str(tmp_path / "s.db"),
+                     "--players", str(tmp_path / "players.json")],
+                    env=FAKE_ENV, out=out)
+    assert code == cli.EXIT_OK
+    assert "[ok  ] tag-map" in out.text
+    assert "12 tag(s) mapped one-to-one onto all 12 groups" in out.text
+    assert "built in (tag-map.json)" in out.text
+
+
+def test_built_in_tag_map_matches_tag_map_json():
+    """The literal dict and the committed file are the same 12 pairs."""
+    from nwnbot.config import TAG_GROUPS
+
+    on_disk = json.loads((REPO / "tag-map.json").read_text(encoding="utf-8"))
+    assert on_disk["tag_groups"] == TAG_GROUPS
+    assert len(TAG_GROUPS) == 12
+
+
+def test_doctor_reports_a_missing_bot_user_id():
+    """Loop-prevention layer one must fail loudly, not default to \"\"."""
+    env = {k: v for k, v in FAKE_ENV.items() if k != "DISCORD_BOT_USER_ID"}
+    out = Out()
+    code = cli.main(["doctor", "--db", ""], env=env, out=out)
+    assert code == cli.EXIT_FAIL
+    assert "DISCORD_BOT_USER_ID" in out.text
+
+
+def test_env_example_documents_every_required_variable():
+    text = (REPO / ".env.example").read_text(encoding="utf-8")
+    for name in cli.REQUIRED_ENV:
+        assert f"{name}=" in text, f"{name} is required but absent from .env.example"
 
 
 def test_doctor_exits_non_zero_on_a_deliberately_broken_mapping(tmp_path):
@@ -357,6 +386,7 @@ def test_doctor_accepts_a_complete_mapping(tmp_path):
                     encoding="utf-8")
     out = Out()
     code = cli.main(["doctor", "--fixture", str(FIXTURE), "--db", str(tmp_path / "s.db"),
+                     "--players", str(tmp_path / "players.json"),
                      "--tag-map", str(good)], env=FAKE_ENV, out=out)
     assert code == cli.EXIT_OK
     assert "[ok  ] tag-map" in out.text
@@ -537,3 +567,122 @@ def test_cli_never_reads_the_dotenv_file():
     text = (REPO / "nwnbot" / "cli.py").read_text(encoding="utf-8")
     assert "dotenv" not in text
     assert 'load_dotenv' not in text
+
+
+# --------------------------------------------------------------------------
+# `[b5-config]`: the player identity map
+# --------------------------------------------------------------------------
+def test_doctor_warns_while_the_player_map_is_empty(tmp_path):
+    out = Out()
+    code = cli.main(["doctor", "--db", str(tmp_path / "s.db"),
+                     "--players", str(tmp_path / "players.json")],
+                    env=FAKE_ENV, out=out)
+    assert code == cli.EXIT_OK          # a warning, never a refusal to start
+    assert "[warn] players" in out.text
+    assert "queued for review" in out.text
+
+
+def test_seed_players_writes_candidates_and_no_ids(tmp_path):
+    """Seeding is honest about its ceiling: it resolves nobody.
+
+    The roadmap roster holds names and display names; a Discord user id is a
+    snowflake that appears nowhere in it. So the seed lists candidates and
+    leaves `discord_ids` empty for a human to fill.
+    """
+    target = tmp_path / "players.json"
+    out = Out()
+    code = cli.main(["doctor", "--fixture", str(FIXTURE),
+                     "--db", str(tmp_path / "s.db"),
+                     "--players", str(target),
+                     "--seed-players", str(target)], env=FAKE_ENV, out=out)
+    assert code == cli.EXIT_OK
+    doc = json.loads(target.read_text(encoding="utf-8"))
+    assert doc["discord_ids"] == {}
+    assert [c["roadmap_name"] for c in doc["candidates"]] == ["Testplayer"]
+    assert "No id was guessed" in out.text
+
+
+def test_seed_players_refuses_without_a_snapshot(tmp_path):
+    target = tmp_path / "players.json"
+    out = Out()
+    code = cli.main(["doctor", "--db", str(tmp_path / "s.db"),
+                     "--players", str(target), "--seed-players", str(target)],
+                    env=FAKE_ENV, out=out)
+    assert code == cli.EXIT_FAIL
+    assert not target.exists()
+
+
+def test_doctor_reads_an_existing_player_map(tmp_path):
+    target = tmp_path / "players.json"
+    target.write_text(json.dumps({"discord_ids": {"111": "Testplayer"},
+                                  "candidates": [{"roadmap_name": "Someone Else",
+                                                  "alias": None}]}),
+                      encoding="utf-8")
+    out = Out()
+    code = cli.main(["doctor", "--db", str(tmp_path / "s.db"),
+                     "--players", str(target)], env=FAKE_ENV, out=out)
+    assert code == cli.EXIT_OK
+    assert "[ok  ] players" in out.text
+    assert "1 discord id(s) mapped, 1 roster name(s) still unmatched" in out.text
+
+
+def test_a_fixture_keeps_its_own_tag_names(tmp_path):
+    """Precedence: --tag-map, then the fixture's own map, then the built-in one.
+
+    A fake world describes a fake forum; checking the real 12 tag names against
+    it would be a meaningless failure.
+    """
+    out = Out()
+    code = cli.main(["doctor", "--fixture", str(FIXTURE), "--db", str(tmp_path / "s.db"),
+                     "--players", str(tmp_path / "players.json")],
+                    env=FAKE_ENV, out=out)
+    assert code == cli.EXIT_OK
+    assert "(fixture)" in out.text
+
+
+def test_channel_types_come_only_from_the_environment():
+    assert cli._channel_types(FAKE_ENV) == {"fake-channel-bugs": "Defect",
+                                            "fake-channel-features": "Enhancement"}
+    assert cli._channel_types({}) == {}
+
+
+# --------------------------------------------------------------------------
+# `[b5-config]`: startup validation on the live path
+# --------------------------------------------------------------------------
+def test_strict_config_stops_a_run_when_the_forum_has_drifted():
+    """A renamed forum tag must stop the run, not misfile every new thread.
+
+    `serve` and the live `plan`/`apply` build their engine with
+    `strict_config=True`, so the mapping meets the editor's real `vocab` and
+    the forums' real `available_tags` before anything is planned.
+    """
+    from nwnbot.config import ConfigError
+
+    w = world()
+    drifted = botmod.ForumSnapshot(
+        threads=w.forum.threads, bot_user_id=w.forum.bot_user_id,
+        available_tags={"fake-channel-bugs": ("a tag nobody mapped",)})
+    engine = botmod.SyncEngine(botmod.StaticSource(w.roadmap, drifted), w.context,
+                               store=w.view, dry_run=True, strict_config=True)
+    with pytest.raises(ConfigError) as exc:
+        asyncio.run(engine.cycle(reason="test"))
+    assert "example-tag-forge" in str(exc.value)
+
+
+def test_strict_config_passes_when_nothing_has_drifted():
+    w = world()
+    engine = botmod.SyncEngine(botmod.StaticSource(w.roadmap, w.forum), w.context,
+                               store=w.view, dry_run=True, strict_config=True)
+    report = asyncio.run(engine.cycle(reason="test"))
+    assert report.ok
+
+
+def test_the_offline_engine_does_not_validate_against_fakes():
+    """Fixtures are allowed to describe a world the real mapping disagrees with."""
+    w = world()
+    drifted = botmod.ForumSnapshot(threads=w.forum.threads,
+                                   bot_user_id=w.forum.bot_user_id,
+                                   available_tags={"fake-channel-bugs": ("nope",)})
+    engine = botmod.SyncEngine(botmod.StaticSource(w.roadmap, drifted), w.context,
+                               store=w.view, dry_run=True)
+    assert asyncio.run(engine.cycle(reason="test")) is not None

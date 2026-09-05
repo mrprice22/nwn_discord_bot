@@ -288,6 +288,19 @@ def assert_ideas_writable(baseline: Mapping[str, dict], ideas: Sequence[dict]) -
                     f"'{iid}': refusing to write {name!r} — only the editor's "
                     f"Award/Revoke buttons may move it")
 
+        # Never change `type` on an idea that already exists. There is no
+        # Exploit forum tag ([r3]): an exploit is filed as a Defect and the
+        # admin promotes it to Exploit (1 merit -> 3) in the editor. Rewriting
+        # `type` on an existing idea is exactly how that promotion would be
+        # silently undone, so it is refused on the wire as well as at planning
+        # time (`sync.CREATION_ONLY_FIELDS`).
+        if old is not None and "type" in idea and idea.get("type") != old.get("type"):
+            raise ForbiddenWrite(
+                f"'{iid}': refusing to change type from {old.get('type')!r} to "
+                f"{idea.get('type')!r} — type is written once, at creation. "
+                f"Promoting a Defect to an Exploit is the admin's call and the "
+                f"bot must never revert it")
+
         # Never touch a top-level document block by smuggling it onto an idea.
         for name in FORBIDDEN_BLOCKS:
             if name in idea and name not in (old or {}):

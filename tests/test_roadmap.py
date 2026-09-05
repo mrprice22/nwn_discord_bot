@@ -573,3 +573,34 @@ def test_endpoint_constants_match_the_editors_routes():
     assert API_IDEA_COMMENT == "/api/idea-comment"
     assert "status" not in FORBIDDEN_BLOCKS
     assert FORBIDDEN_STATUSES == {"awarded", "implemented", "manual"}
+
+
+# --------------------------------------------------------------------------
+# `[r3]`: `type` is written once, at creation — never on an existing idea
+# --------------------------------------------------------------------------
+def test_changing_type_on_an_existing_idea_is_refused_on_the_wire():
+    """A promoted Exploit is worth 3 merit; a demotion to Defect costs 2.
+
+    The planner already cannot construct such an update
+    (`sync.CREATION_ONLY_FIELDS`); this is the second line, at the byte that
+    would go over the wire, so a hand-built save cannot do it either.
+    """
+    baseline = {"exploit-thing": {"id": "exploit-thing", "type": "Exploit",
+                                  "status": "wip"}}
+    with pytest.raises(ForbiddenWrite) as exc:
+        assert_ideas_writable(baseline, [{"id": "exploit-thing", "type": "Defect",
+                                          "status": "wip"}])
+    assert "Exploit" in str(exc.value) and "type" in str(exc.value)
+
+
+def test_leaving_type_alone_on_an_existing_idea_is_fine():
+    baseline = {"exploit-thing": {"id": "exploit-thing", "type": "Exploit",
+                                  "group": "forge"}}
+    assert_ideas_writable(baseline, [{"id": "exploit-thing", "type": "Exploit",
+                                      "group": "bosses"}])
+    # An idea the bot never touches carries no `type` key at all in the diff.
+    assert_ideas_writable(baseline, [{"id": "exploit-thing", "group": "bosses"}])
+
+
+def test_a_brand_new_idea_may_still_set_its_type():
+    assert_ideas_writable({}, [{"id": "new-thing", "type": "Defect", "hidden": True}])

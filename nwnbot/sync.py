@@ -28,9 +28,15 @@ Loop prevention has three layers:
 
 Configuration is an **input**, not an import. The forum-tag -> group mapping,
 the channel -> type mapping and the player identity map all arrive in
-:class:`PlanContext`, because the real tag names and channel ids are still open
-review items ``r2``/``r3`` and ``[b5-config]`` is blocked. Nothing here invents
-a tag name or hard-codes an id.
+:class:`PlanContext`; ``[b5-config]`` supplies them and ``nwnbot.cli`` builds
+the context. Nothing here invents a tag name or hard-codes an id, and an empty
+mapping produces a review item rather than a guess.
+
+``type`` is written **once**, when an idea is created: there is no ``Exploit``
+forum tag (review item ``[r3]``), so an exploit arrives as a ``Defect`` and the
+admin promotes it in the editor. :data:`CREATION_ONLY_FIELDS` makes an update
+to ``type`` unconstructible, so a later sync cannot demote a promoted exploit
+from 3 merit back to 1.
 """
 
 from __future__ import annotations
@@ -42,6 +48,7 @@ import unicodedata
 from dataclasses import dataclass, field, replace
 from typing import Any, Iterable, Iterator, Mapping, Sequence
 
+from nwnbot import config as cfg
 from nwnbot.config import MERIT_BY_TYPE
 from nwnbot.forum import ForumMessage, ForumSnapshot, ForumThread
 from nwnbot.roadmap import COMMENT_MAX_LEN, ForbiddenWrite, Snapshot
@@ -63,6 +70,15 @@ ADMIN_ONLY_STATUSES = frozenset({"awarded", "implemented", "manual"})
 #: release note; ``merit_awarded`` is the merit DB's own receipt.
 ADMIN_ONLY_FIELDS = frozenset({"notes", "notes_h", "impl_notes", "impl_notes_h",
                                "merit_awarded"})
+
+#: Fields the bot may set when it *creates* an idea and may never change
+#: afterwards. ``type`` is the whole list, and the reason is review item
+#: ``[r3]``: there is no ``Exploit`` forum tag, so an exploit arrives as an
+#: ordinary bug (``Defect``, 1 merit) and the admin promotes it to ``Exploit``
+#: (3 merit) in the editor. An update to ``type`` would silently undo that
+#: promotion on the next sync. Enforced here, at construction, so it cannot be
+#: planned — and again in ``nwnbot.roadmap.assert_ideas_writable`` on the wire.
+CREATION_ONLY_FIELDS = frozenset(cfg.CREATION_ONLY_FIELDS)
 
 #: Terminal states: there is no ``closed``. A thread is closed on
 #: ``merit_awarded`` (the boolean, not the status) or on ``unlikely``.
@@ -330,6 +346,12 @@ class UpdateIdeaField(Action):
             raise ForbiddenWrite(
                 f"{self.idea_id!r}: refusing to plan a write to {self.field_name!r} — "
                 f"that field is the admin's")
+        if self.field_name in CREATION_ONLY_FIELDS:
+            raise ForbiddenWrite(
+                f"{self.idea_id!r}: refusing to plan an update to "
+                f"{self.field_name!r} — it is written once, when the idea is "
+                f"created ([r3]). Updating it would demote an admin-promoted "
+                f"Exploit (3 merit) back to a Defect (1 merit).")
         if self.field_name == "status" and self.value in ADMIN_ONLY_STATUSES:
             raise ForbiddenWrite(
                 f"{self.idea_id!r}: refusing to plan status {self.value!r} — "
@@ -563,9 +585,10 @@ class Plan(Sequence):
 class PlanContext:
     """Everything the planners need to know that is not in a snapshot.
 
-    All of it is an **input**. ``[b5-config]`` is blocked on the real tag names
-    and channel ids (review items ``r2``/``r3``), so nothing here has a default
-    that invents one: an empty mapping produces a review item, never a guess.
+    All of it is an **input**: ``[b5-config]`` owns the values and
+    ``nwnbot.cli`` assembles them. Nothing here has a default that invents one —
+    an empty mapping produces a review item, never a guess, and ``players`` is
+    an id -> name map so an unrecognised author is queued rather than matched.
     """
 
     tag_groups: Mapping[str, str] = field(default_factory=dict)      # tag name -> group id
@@ -805,8 +828,8 @@ def _plan_new_idea(actions: list[Action], thread: ForumThread, roadmap: Snapshot
 
     if not ctx.tag_groups:
         _review(actions, view, REVIEW_TAG_MAPPING_MISSING, "tag_groups",
-                "no forum-tag -> group mapping was supplied ([b5-config] is blocked "
-                "on review items r2/r3), so no idea can be filed")
+                "no forum-tag -> group mapping was supplied (config.TAG_GROUPS or "
+                "--tag-map), so no idea can be filed")
         return
     group = ctx.group_for_tags(thread.tag_names)
     if not group:
@@ -1014,8 +1037,8 @@ def _plan_new_thread(actions: list[Action], idea: Mapping[str, Any],
 
     if not ctx.tag_groups:
         _review(actions, view, REVIEW_TAG_MAPPING_MISSING, "tag_groups",
-                "no forum-tag -> group mapping was supplied ([b5-config] is blocked "
-                "on review items r2/r3), so no thread can be tagged")
+                "no forum-tag -> group mapping was supplied (config.TAG_GROUPS or "
+                "--tag-map), so no thread can be tagged")
         return
     tags = ctx.tags_for_group(str(idea.get("group") or ""))
     if not tags:
@@ -1170,6 +1193,7 @@ def simulate(plan: Plan, roadmap: Snapshot, forum: ForumSnapshot,
 
 __all__ = [
     "ADMIN_ONLY_FIELDS",
+    "CREATION_ONLY_FIELDS",
     "ADMIN_ONLY_STATUSES",
     "Action",
     "AppendComment",

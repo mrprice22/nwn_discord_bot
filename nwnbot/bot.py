@@ -35,6 +35,7 @@ import logging
 from dataclasses import dataclass, field
 from typing import Any, Iterable
 
+from nwnbot import config as cfg
 from nwnbot.forum import ForumSnapshot, ForumThread, ForumMessage, ForumWriter, RecordingForumWriter
 from nwnbot.roadmap import SaveConflict, Snapshot
 from nwnbot.store import StoreView
@@ -177,13 +178,21 @@ class SyncEngine:
     def __init__(self, source: SnapshotSource, context: PlanContext, *,
                  store: Any = None, roadmap_client: Any = None,
                  forum_writer: ForumWriter | None = None,
-                 dry_run: bool = True) -> None:
+                 dry_run: bool = True, strict_config: bool = False) -> None:
         self.source = source
         self.context = context
         self.store = store
         self.roadmap_client = roadmap_client
         self.forum_writer = forum_writer if forum_writer is not None else RecordingForumWriter()
         self.dry_run = dry_run
+        #: `[b5-config]`'s startup validation. On the live path the tag mapping
+        #: is checked against the editor's own `vocab` and the forums' real
+        #: `available_tags` the first time a snapshot pair arrives, and drift on
+        #: either side raises `ConfigError` before anything is planned. Off for
+        #: fixtures and tests, whose fake worlds carry fake tag names on
+        #: purpose.
+        self.strict_config = strict_config
+        self._config_validated = False
 
     def view(self) -> StoreView:
         if self.store is None:
@@ -195,6 +204,7 @@ class SyncEngine:
     async def cycle(self, *, reason: str = "") -> RunReport:
         """One full pass. The *only* entry point events and the timer use."""
         roadmap, forum = await self.source.snapshots()
+        self.validate_config(roadmap, forum)
         view = self.view()
         plans = plan_all(roadmap, forum, view, self.context)
         report = RunReport(dry_run=self.dry_run, reason=reason, plans=plans)
@@ -214,6 +224,22 @@ class SyncEngine:
             if report.conflicts:
                 break  # [r10]: stop on a conflict, do not retry, never force
         return report
+
+    def validate_config(self, roadmap: Snapshot, forum: ForumSnapshot) -> None:
+        """Fail loudly if the tag mapping has drifted from the live systems.
+
+        Runs once per engine, on the first cycle, because that is the first
+        moment both sides are actually in hand. A forum that gained, lost or
+        renamed a tag, or an editor whose `groups:` moved, stops the run here
+        rather than filing every new thread under the wrong group.
+        """
+        if not self.strict_config or self._config_validated:
+            return
+        cfg.validate_tag_map(self.context.tag_groups,
+                             available_tags=forum.available_tags,
+                             vocab_group_ids=roadmap.vocab.get("groups") or (),
+                             where="the tag -> group mapping")
+        self._config_validated = True
 
     # -- execution ---------------------------------------------------------
     def _record_state_only(self, plans: Iterable[Plan]) -> None:
