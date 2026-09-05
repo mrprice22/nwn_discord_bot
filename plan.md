@@ -52,6 +52,10 @@ and is superseded.
   the same idea gets their **own idea row** carrying `dupe_of: <canonical-id>` and their own
   `player:`, which is how they still earn merit. `gen-roadmap.py` folds the dupe row into the
   canonical item's card. So "merge" means *mint a dupe row*, never *edit the original*.
+- **Tests run from `.venv/`.** System Python is 3.14.7 and has `aiohttp`, `PyYAML` and
+  `discord.py` but *not* `pytest`. The repo carries a gitignored `.venv`
+  (`python -m venv --system-site-packages .venv`); run the suite as
+  `.venv/bin/python -m pytest -q`, not bare `python -m pytest`.
 - `$ROADMAP_AUTH_DB` overrides the account DB path — this is what makes a real end-to-end
   integration test possible against a throwaway editor instance.
 
@@ -71,7 +75,7 @@ and is superseded.
 Each item: `[id]` · status `todo` | `wip` | `blocked` | `done`. Work one end to end per
 iteration. Acceptance is the line that says how you know it is finished.
 
-### `[b1-scaffold]` — status: todo
+### `[b1-scaffold]` — status: done
 Delete `scraper.py`. Create the `nwnbot/` package (`__init__`, `config`, `store`, `roadmap`,
 `render`, `forum`, `sync`, `cli`, `bot`) and `tests/`. Add `aiohttp`, `PyYAML`, `pytest`,
 `pytest-asyncio` to `requirements.txt`. Extend `.env.example` with `ROADMAP_BASE_URL`,
@@ -253,10 +257,23 @@ is only a suggestion in the thread plus a review entry. Turn auto-merge on once 
 have been right consistently. Alternative: never auto-merge at all and always leave it to you.
 **Answer:** _(unanswered)_
 
+### `[r7]` 2026-09-05 — Packaging and async-test conventions — status: open
+Raised by `[b1-scaffold]`; **blocks nothing** — b7 has a working default either way, so
+autopilot proceeds unless you say otherwise. Two conventions the later items inherit:
+1. `pyproject.toml` is pytest-config only, so `nwnbot` imports by rootdir happenstance rather
+   than being installed. `[b7-cli-runtime]`'s `python -m nwnbot plan` and the systemd unit both
+   want an answer.
+   **Proposed:** keep it minimal; b7 adds `nwnbot/__main__.py` and sets `WorkingDirectory=` +
+   `PYTHONPATH=` in the unit rather than requiring `pip install -e .` on the server.
+2. `asyncio_mode = "strict"` — every async test needs an explicit `@pytest.mark.asyncio`.
+   **Proposed:** keep `strict`. It costs b3/b6 one decorator per async test and is worth the
+   explicitness; changing it later means touching every async test.
+**Answer:** _(unanswered)_
+
 ---
 
 ## Log
 
 One line per completed item: id · date · commit · what shipped.
 
-_(empty)_
+`[b1-scaffold]` · 2026-09-05 · b95bfff · First commit: `nwnbot/` package stubs, `tests/` smoke suite, `scraper.py` retired, requirements + `.env.example` extended.
