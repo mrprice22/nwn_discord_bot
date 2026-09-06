@@ -49,7 +49,9 @@ MD_CASES = [
     "",
     "hello world",
     "**bold** and *italic* and __underline__",
-    "a `code()` span stays literal",
+    "a `code()` span becomes a <code> tag",
+    "```\nfenced block\n  indented line\n\nblank inside\n```",
+    "before\n\n```\nx = 1\n```\n\nafter",
     "line one\nline two",
     "para one\n\npara two",
     "- one\n- two\n- three",
@@ -194,7 +196,8 @@ def test_md_to_html_only_emits_whitelisted_tags(src):
     # Mirrors roadmap_sanitize.ALLOWED_TAGS; anything else would be unwrapped
     # (or worse) by the editor's own sanitizer on save.
     allowed = {"a", "b", "strong", "i", "em", "u", "ul", "ol", "li",
-               "p", "br", "hr", "div", "span", "font", "img", "blockquote"}
+               "p", "br", "hr", "div", "span", "font", "img", "blockquote",
+               "code", "pre"}
     for tag in re.findall(r"</?([a-zA-Z0-9]+)", md_to_html(src)):
         assert tag.lower() in allowed
 
@@ -245,12 +248,43 @@ def test_md_to_html_lists():
     assert md_to_html("1. a\n2. b") == "<ol><li>a</li><li>b</li></ol>"
 
 
-def test_md_to_html_never_emits_code_or_pre_tags():
-    # Neither is on the roadmap sanitizer's whitelist, so inline code keeps its
-    # literal backticks instead of becoming a tag that would be unwrapped.
-    out = md_to_html("run `make test` now")
-    assert "<code" not in out and "<pre" not in out
-    assert "`make test`" in out
+def test_md_to_html_emits_code_and_pre():
+    # Both joined roadmap_sanitize.ALLOWED_TAGS in nwn_homers_lotr dd91ee5a4a3,
+    # so they survive a save instead of being unwrapped ([r8].3).
+    assert md_to_html("run `make test` now") == \
+        "<div>run <code>make test</code> now</div>"
+    assert md_to_html("```\nx = 1\n```") == "<pre>x = 1</pre>"
+
+
+def test_code_and_pre_carry_no_attributes_and_escape_their_content():
+    # Whatever is inside is content, never markup — the sanitizer would strip
+    # an attribute anyway, so emitting one would only break the fixed point.
+    out = md_to_html("`<script>alert(1)</script>`")
+    assert out == "<div><code>&lt;script&gt;alert(1)&lt;/script&gt;</code></div>"
+    assert md_to_html("```\n<b>not bold</b>\n```") == \
+        "<pre>&lt;b&gt;not bold&lt;/b&gt;</pre>"
+
+
+def test_a_fence_language_is_dropped_rather_than_faked():
+    # <pre> has no attribute to hold it, so the first round trip normalizes it
+    # away; the point is that it is stable from the second on.
+    assert md_to_html("```python\nx = 1\n```") == "<pre>x = 1</pre>"
+
+
+def test_pre_keeps_the_whitespace_that_is_its_whole_point():
+    md = html_to_md("<pre>  two leading spaces\n\nand a blank line</pre>")
+    assert md == "```\n  two leading spaces\n\nand a blank line\n```"
+
+
+def test_a_block_containing_a_fence_gets_a_longer_one():
+    md = html_to_md("<pre>```\ninner\n```</pre>")
+    assert md.startswith("````\n") and md.endswith("\n````")
+    assert md_to_html(md) == "<pre>```\ninner\n```</pre>"
+
+
+def test_inline_code_holding_a_backtick_falls_back_to_plain_text():
+    # No inline span can hold one unambiguously; keep the text, drop the mark.
+    assert html_to_md("<code>a`b</code>") == "a`b"
 
 
 def test_html_to_md_collapses_div_span_nesting():

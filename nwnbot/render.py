@@ -24,10 +24,12 @@ Shapes verified against ``nwn_homers_lotr`` (read-only), not guessed:
   and attribute emitted here is inside that whitelist, so a round trip through
   the editor's own sanitizer is a no-op.
 
-There is deliberately **no** ``<code>``/``<pre>``: neither is on the roadmap
-sanitizer's whitelist, so emitting one would be silently unwrapped on save and
-break the fixed point. Inline code keeps its literal backticks as text instead,
-which round-trips exactly.
+``<code>`` and ``<pre>`` joined ``ALLOWED_TAGS`` in ``nwn_homers_lotr`` commit
+`dd91ee5a4a3` (review item [r8].3), so inline code becomes a real ``<code>`` and
+a fenced block a real ``<pre>``. Neither carries attributes, which is what the
+sanitizer would strip anyway. Language info strings are dropped: there is no
+attribute to hold one, so ```` ```python ```` normalizes to a bare fence on the
+first round trip and is stable from the second on.
 
 ``cdn.discordapp.com`` links are signed and expire: they are stored as plain
 links, never rehosted, and :func:`annotate_expiring_links` appends a one-line
@@ -163,7 +165,8 @@ def _inline_to_html(text: str) -> str:
         if m.group("esc"):
             out.append(_text_html(m.group("esc")[1]))
         elif m.group("code"):
-            out.append(_text_html(m.group("code")))
+            # Strip the delimiters; the content is literal, never re-parsed.
+            out.append("<code>" + _text_html(m.group("code")[1:-1]) + "</code>")
         elif m.group("img") is not None and m.group("img"):
             url = _safe_src(m.group("iurl"))
             if url:
@@ -203,6 +206,11 @@ def _inline_to_html(text: str) -> str:
 _LIST_RE = re.compile(r"^(?P<indent>[ \t]*)(?P<marker>[-+*]|\d+[.)])[ \t]+(?P<body>.*)$")
 _QUOTE_RE = re.compile(r"^[ \t]*>[ \t]?(?P<body>.*)$")
 _RULE_RE = re.compile(r"^[ \t]*(?:-{3,}|\*{3,}|_{3,})[ \t]*$")
+# A fenced code block. The opening fence may carry a language; there is no
+# attribute on <pre> to store one, so it is read and dropped. The closing fence
+# must be at least as long as the opening one, which is what lets a block that
+# itself contains ``` be written with a longer fence.
+_FENCE_RE = re.compile(r"^[ \t]{0,3}(?P<ticks>`{3,})[ \t]*(?P<info>[^`]*)$")
 
 
 def _indent_width(raw: str) -> int:
@@ -258,7 +266,21 @@ def _blocks_to_html(lines: list[str]) -> str:
     i = 0
     while i < len(lines):
         line = lines[i]
-        if _RULE_RE.match(line):
+        fence = _FENCE_RE.match(line)
+        if fence:
+            i += 1
+            opener = len(fence.group("ticks"))
+            body: list[str] = []
+            while i < len(lines):
+                close = _FENCE_RE.match(lines[i])
+                if close and not close.group("info").strip() \
+                        and len(close.group("ticks")) >= opener:
+                    i += 1
+                    break
+                body.append(lines[i])
+                i += 1
+            out.append("<pre>" + escape("\n".join(body), quote=False) + "</pre>")
+        elif _RULE_RE.match(line):
             out.append("<hr>")
             i += 1
         elif _LIST_RE.match(line):
@@ -393,6 +415,42 @@ class _MdWriter:
         self.flush()
         self.lines.append(self.quote + "---")
 
+    def fence(self, code: str) -> None:
+        """Emit a fenced block verbatim: no collapsing, no markdown escaping.
+
+        The fence is one backtick longer than the longest run inside the block,
+        so a block that itself contains ``` still closes where it should.
+        """
+        self.flush()
+        body = code.strip("\n")
+        longest = max((len(m) for m in re.findall(r"`+", body)), default=0)
+        ticks = "`" * max(3, longest + 1)
+        self.lines.append(self.quote + ticks)
+        self.lines.extend(self.quote + line for line in body.split("\n"))
+        self.lines.append(self.quote + ticks)
+
+
+def _raw_text(node: _Node) -> str:
+    """Concatenate a subtree's text with whitespace intact, for ``<pre>``.
+
+    Inside a ``<pre>`` every space and newline is content, so this deliberately
+    does not go through :class:`_MdWriter` (which collapses runs and escapes
+    markdown metacharacters). ``<br>`` is the one tag that carries meaning here.
+    """
+    out: list[str] = []
+
+    def rec(nodes: list) -> None:
+        for node_ in nodes:
+            if isinstance(node_, str):
+                out.append(node_)
+            elif node_.tag == "br":
+                out.append("\n")
+            elif node_.tag not in _VOID_TAGS:
+                rec(node_.children)
+
+    rec(node.children)
+    return "".join(out)
+
 
 def _inline_of(node: _Node) -> str:
     """Render a subtree as a single inline string (used for link labels)."""
@@ -433,6 +491,23 @@ def _walk(nodes: list, w: _MdWriter) -> None:
                 w.text(href)
             else:
                 w.text(f"[{label}]({href})")
+        elif tag == "pre":
+            # Handled before _BLOCK_TAGS: the generic block branch would walk
+            # the children through _MdWriter and lose exactly the whitespace a
+            # <pre> exists to preserve.
+            w.fence(_raw_text(node))
+        elif tag == "code":
+            inner = _raw_text(node)
+            if not inner.strip():
+                continue
+            if "\n" in inner:
+                w.fence(inner)          # a block-shaped <code> with no <pre>
+            elif "`" in inner:
+                # No inline span can hold a backtick without ambiguity; keep
+                # the text rather than emit a fence that would not round-trip.
+                w.text(_escape_md(re.sub(r"\s+", " ", inner)))
+            else:
+                w.text("`" + inner.strip() + "`")
         elif tag in ("b", "strong", "i", "em", "u"):
             mark = {"b": "**", "strong": "**", "i": "*", "em": "*", "u": "__"}[tag]
             inner = _inline_of(node)
