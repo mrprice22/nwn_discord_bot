@@ -947,3 +947,87 @@ def test_removing_a_dupe_of_that_was_announced_is_a_review_item():
     plan = _r2d(roadmap(CANONICAL, plain), forum(thread()), view, CTX)
     assert REVIEW_DUPE_UNLINKED in review_kinds(plan)
 
+
+# --------------------------------------------------------------------------
+# [b8-backfill] — who earns a Discord thread
+#
+# One policy, shared by `backfill` and the live `serve` loop, because they run
+# the same planner. A filter that lived only in the command would let `serve`
+# plan a thread for every open item on its first cycle, blow the action cap and
+# abort every run -- taking the Discord -> roadmap direction down with it, since
+# a cycle aborts whole.
+# --------------------------------------------------------------------------
+STAFF = "HomelessSon (Server Admin)"
+NEAR = frozenset({"implemented", "confirmed", "manual", "design", "wip", "soon"})
+STAFF_CTX = _replace(CTX, staff_players=frozenset({STAFF}),
+                     staff_thread_statuses=NEAR)
+
+ELIGIBILITY_CASES = [
+    pytest.param(PLAYER, "planned", True, id="player, planned -> yes"),
+    pytest.param(PLAYER, "later", True, id="player, later -> yes"),
+    pytest.param(PLAYER, "wip", True, id="player, wip -> yes"),
+    pytest.param(STAFF, "planned", False, id="staff, planned -> no"),
+    pytest.param(STAFF, "later", False, id="staff, later -> no"),
+    pytest.param(STAFF, "soon", True, id="staff, soon -> yes"),
+    pytest.param(STAFF, "wip", True, id="staff, wip -> yes"),
+    pytest.param(STAFF, "implemented", True, id="staff, implemented -> yes"),
+    pytest.param("", "wip", True, id="no player, near-term -> yes"),
+    pytest.param("", "planned", False, id="no player counts as staff"),
+]
+
+
+@pytest.mark.parametrize("player,status,expected", ELIGIBILITY_CASES)
+def test_who_earns_a_thread(player, status, expected):
+    assert STAFF_CTX.earns_thread({"player": player, "status": status}) is expected
+
+
+def test_with_no_staff_configured_everything_earns_a_thread():
+    """The pre-b8 behaviour, which is what a hand-built PlanContext still gets."""
+    for status in ("planned", "later", "wip"):
+        assert CTX.earns_thread({"player": STAFF, "status": status}) is True
+
+
+@pytest.mark.parametrize("player,status,expected", ELIGIBILITY_CASES)
+def test_the_policy_reaches_the_planner(player, status, expected):
+    """Not just the predicate: the planner really skips an ineligible item."""
+    item = idea("thing", title="A thing", group="forge", status=status,
+                type="Defect", player=player)
+    plan = _r2d(roadmap(item, players=(PLAYER, STAFF)), forum(), None, STAFF_CTX)
+    opened = [a for a in plan if isinstance(a, CreateThread)]
+    assert bool(opened) is expected
+
+
+def test_an_ineligible_item_is_silent_not_a_review_item():
+    """Most of the backlog is ineligible; that is normal, not a question."""
+    item = idea("thing", title="A thing", group="forge", status="planned",
+                type="Defect", player=STAFF)
+    plan = _r2d(roadmap(item, players=(STAFF,)), forum(), None, STAFF_CTX)
+    assert kinds(plan) == []
+
+
+def test_eligibility_does_not_touch_an_item_that_already_has_a_thread():
+    """Promotion opens a thread; demotion must never orphan one.
+
+    An item that already has a thread keeps getting status posts whatever its
+    status, because `earns_thread` is only consulted on the create branch.
+    """
+    item = idea("thing", title="A thing", group="forge", status="planned",
+                type="Defect", player=STAFF, discord={"thread_id": "t-1"})
+    plan = _r2d(roadmap(item, players=(STAFF,)), forum(thread()), None, STAFF_CTX)
+    # Quiet adoption ([r11].3): the first sighting records a baseline rather than
+    # posting retroactively. What matters here is that the item was *considered*
+    # at all -- an ineligible item with no thread plans nothing whatsoever.
+    assert kinds(plan) == ["RecordBaseline"]
+
+
+def test_the_staff_status_set_is_the_soon_and_beyond_prefix():
+    """`soon or beyond`, derived from the ordered STATUSES tuple.
+
+    Asserted rather than commented so inserting a status upstream cannot
+    silently widen or narrow who gets told about what.
+    """
+    import nwnbot.config as cfg
+    from nwnbot.sync import STATUSES as ORDER, TERMINAL_STATUSES as TERMINAL
+    prefix = set(ORDER[:ORDER.index("soon") + 1]) - TERMINAL
+    assert prefix == cfg.STAFF_THREAD_STATUSES
+

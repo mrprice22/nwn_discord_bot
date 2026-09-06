@@ -285,17 +285,21 @@ def test_backfill_writes_a_report_and_creates_nothing(tmp_path):
     text = report.read_text(encoding="utf-8")
     assert "Total: 1 thread(s)" in text
     assert "example-tag-forge" in text
-    assert "[b8-backfill]" in text and "[r4]" in text
+    assert "[b8-backfill]" in text, "the report names the eligibility policy"
+    # The report is the thing you read before arming, so it must hand you the
+    # exact command -- including the count, which is the confirmation.
+    assert "--yes --cap 1" in text and "NWNBOT_DRY_RUN=0" in text
     assert "Nothing has been created" in text
 
 
-def test_backfill_yes_is_refused_and_points_at_the_review_item(tmp_path):
+def test_backfill_yes_without_dry_run_zero_is_refused(tmp_path):
+    """--yes alone is not consent, exactly as for `apply`."""
     report = tmp_path / "backfill-plan.md"
     out = Out()
     code = cli.main(["backfill", "--fixture", str(FIXTURE), "--out", str(report),
                      "--yes"], env=FAKE_ENV, out=out)
-    assert code != cli.EXIT_OK
-    assert "[b8-backfill]" in out.text and "[r4]" in out.text
+    assert code == cli.EXIT_REFUSED
+    assert "NWNBOT_DRY_RUN=0" in out.text
     assert not report.exists(), "a refused backfill writes nothing at all"
 
 
@@ -788,3 +792,165 @@ def test_doctor_reports_the_duplicate_policy():
     cli.main(["doctor", "--fixture", str(FIXTURE)], env=FAKE_ENV, out=out)
     assert "never writes dupe_of" in out.text
 
+
+# --------------------------------------------------------------------------
+# [b8-backfill] — the batch. Paced, checkpointed, resumable.
+#
+# The property that matters is the last one: an interruption halfway through
+# must not open a second thread for an item that already has one. Everything
+# else is a gate around it.
+# --------------------------------------------------------------------------
+ARMED = dict(FAKE_ENV, NWNBOT_DRY_RUN="0")
+
+
+class Boom(Exception):
+    """Stands in for the process dying mid-batch."""
+
+
+class FlakyWriter(RecordingForumWriter):
+    """A forum writer that rate-limits, or dies, on a chosen call.
+
+    `status`/`retry_after` are duck-typed the same way discord.py's
+    HTTPException carries them, so nothing here imports discord.py.
+    """
+
+    def __init__(self, *, rate_limit_on=(), die_on=None, retry_after=0.001):
+        super().__init__()
+        self.rate_limit_on = set(rate_limit_on)
+        self.die_on = die_on
+        # Non-zero and tiny: a falsy retry_after makes the executor fall back to
+        # its own doubling backoff, which is correct in production and 60s of
+        # real sleeping in a test.
+        self.retry_after = retry_after
+        self.attempts = 0
+
+    async def create_thread(self, channel_id, title, body, tag_names=()):
+        self.attempts += 1
+        if self.die_on is not None and self.attempts > self.die_on:
+            raise Boom("process died")
+        if self.attempts in self.rate_limit_on:
+            exc = Exception("429 Too Many Requests")
+            exc.status = 429
+            exc.retry_after = self.retry_after
+            raise exc
+        return await super().create_thread(channel_id, title, body, tag_names)
+
+
+def batch_world(tmp_path, n=6):
+    """A fixture world with `n` open, thread-less items.
+
+    Its own file rather than the shared FIXTURE, which carries exactly one
+    plannable thread on purpose and is asserted against by a dozen other tests.
+    """
+    base = json.loads(FIXTURE.read_text(encoding="utf-8"))
+    base["roadmap"]["ideas"] = [
+        {"id": f"batch-item-{i}", "title": f"Batch item {i}", "group": "forge",
+         "status": "wip", "type": "Defect", "player": "Testplayer", "hidden": False}
+        for i in range(n)]
+    base["forum"]["threads"] = []
+    path = tmp_path / "batch_world.json"
+    path.write_text(json.dumps(base), encoding="utf-8")
+    return path
+
+
+def backfill(argv, *, env=ARMED, writer=None, roadmap=None, fixture=None):
+    args = parse(["backfill", "--fixture", str(fixture)] + argv)
+    args.forum_writer = writer
+    args.roadmap_client = roadmap if roadmap is not None else FakeRoadmap()
+    out = Out()
+    return cli.cmd_backfill(args, env, out), out
+
+
+def made(writer):
+    return [c[-1] for c in writer.calls if c[0] == "create_thread"]
+
+
+def test_backfill_refuses_when_the_cap_is_below_the_planned_count(tmp_path):
+    """The cap is the confirmation: [r4] says the number must be typed."""
+    report = tmp_path / "plan.md"
+    code, out = backfill(["--out", str(report), "--yes", "--cap", "1"],
+                         fixture=batch_world(tmp_path))
+    assert code == cli.EXIT_REFUSED
+    assert "--cap 6" in out.text, "the refusal must name the number to confirm"
+    # The report is still written -- it is what you read before confirming.
+    assert report.exists()
+
+
+def test_backfill_executes_when_armed_and_the_cap_names_the_number(tmp_path):
+    writer = RecordingForumWriter()
+    code, out = backfill(["--out", str(tmp_path / "p.md"), "--yes", "--cap", "6",
+                          "--pace", "0"], writer=writer,
+                         fixture=batch_world(tmp_path))
+    assert code == cli.EXIT_OK
+    assert len(made(writer)) == 6
+    assert "opening 6 thread(s)" in out.text
+
+
+def test_backfill_rides_out_a_rate_limit_without_failing_the_run(tmp_path):
+    """A 429 is the API asking us to slow down, not an error to report."""
+    writer = FlakyWriter(rate_limit_on={1, 2})
+    code, out = backfill(["--out", str(tmp_path / "p.md"), "--yes", "--cap", "6",
+                          "--pace", "0"], writer=writer,
+                         fixture=batch_world(tmp_path))
+    assert code == cli.EXIT_OK
+    assert len(made(writer)) == 6, "every thread still gets created"
+    assert writer.attempts == 8, "two rejections, then all six succeed"
+
+
+def test_a_rate_limit_that_never_clears_eventually_gives_up(tmp_path):
+    writer = FlakyWriter(rate_limit_on=set(range(1, 99)))
+    code, out = backfill(["--out", str(tmp_path / "p.md"), "--yes", "--cap", "6",
+                          "--pace", "0"], writer=writer,
+                         fixture=batch_world(tmp_path))
+    assert code == cli.EXIT_FAIL
+    assert made(writer) == [], "nothing was created"
+    assert "429" in out.text
+
+
+def test_an_interrupted_backfill_creates_no_duplicates_on_resume(tmp_path):
+    """The acceptance criterion for [b8-backfill].
+
+    Die after two threads, then re-run against the same database. The second run
+    must plan only what is left: the two already made are checkpointed on both
+    sides -- the store's link table and the idea's own `discord` field -- and the
+    planner skips an item that already has a thread.
+    """
+    db = tmp_path / "state.db"
+    world = batch_world(tmp_path)
+    dying = FlakyWriter(die_on=2)
+    code, _ = backfill(["--out", str(tmp_path / "p.md"), "--yes", "--cap", "6",
+                        "--pace", "0", "--db", str(db)], writer=dying,
+                       fixture=world)
+    assert code == cli.EXIT_FAIL, "a dying writer must not report success"
+    first = made(dying)
+    assert len(first) == 2, f"expected 2 before the crash, got {len(first)}"
+    with Store(str(db)) as store:
+        assert set(store.links()) == set(first), "both threads must be checkpointed"
+
+    resumed = RecordingForumWriter(thread_id_prefix="resumed-")
+    code2, _ = backfill(["--out", str(tmp_path / "p2.md"), "--yes", "--cap", "6",
+                         "--pace", "0", "--db", str(db)], writer=resumed,
+                        fixture=world)
+    assert code2 == cli.EXIT_OK
+    second = made(resumed)
+    assert len(second) == 4, f"resume should open the remaining 4, opened {len(second)}"
+    with Store(str(db)) as store:
+        links = store.links()
+    assert len(links) == 6, "an idea got a second thread: the checkpoint did not hold"
+    assert len(set(links.values())) == 6, "two threads point at the same idea"
+
+
+def test_backfill_paces_the_batch(tmp_path, monkeypatch):
+    """Pacing is real: it sleeps between creations, and not before the first."""
+    slept = []
+
+    async def fake_sleep(seconds):
+        slept.append(seconds)
+
+    monkeypatch.setattr(botmod.asyncio, "sleep", fake_sleep)
+    writer = RecordingForumWriter()
+    code, _ = backfill(["--out", str(tmp_path / "p.md"), "--yes", "--cap", "6",
+                        "--pace", "2"], writer=writer,
+                       fixture=batch_world(tmp_path))
+    assert code == cli.EXIT_OK
+    assert slept == [2.0] * 5, "one wait between creations, none before the first"

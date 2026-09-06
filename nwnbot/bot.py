@@ -179,7 +179,8 @@ class SyncEngine:
     def __init__(self, source: SnapshotSource, context: PlanContext, *,
                  store: Any = None, roadmap_client: Any = None,
                  forum_writer: ForumWriter | None = None,
-                 dry_run: bool = True, strict_config: bool = False) -> None:
+                 dry_run: bool = True, strict_config: bool = False,
+                 pace: float = 0.0) -> None:
         self.source = source
         self.context = context
         self.store = store
@@ -194,6 +195,11 @@ class SyncEngine:
         #: purpose.
         self.strict_config = strict_config
         self._config_validated = False
+        #: `[b8-backfill]`. Seconds to wait between thread creations. Zero on
+        #: every path but `backfill`: a reconcile plans a handful of actions and
+        #: sleeping through them would stall the event loop for no reason.
+        self.pace = pace
+        self._threads_made = 0
 
     def view(self) -> StoreView:
         if self.store is None:
@@ -278,6 +284,34 @@ class SyncEngine:
                                 REVIEW_SAVE_CONFLICT, subject=action.key,
                                 detail=detail)
 
+    async def _create_thread_with_backoff(self, action: Any) -> str:
+        """One thread creation, retried through Discord's rate limiter.
+
+        Waits the server's own ``retry_after`` when it sends one and doubles a
+        local backoff otherwise. A 429 is not a failure -- it is the API asking
+        us to slow down -- so it must not land in the run report as one, and it
+        must not abort the batch: everything already created is checkpointed and
+        the remaining work is still worth doing.
+        """
+        delay = self.pace or cfg.BACKFILL_MIN_INTERVAL
+        for attempt in range(cfg.BACKFILL_MAX_RETRIES + 1):
+            try:
+                return await self.forum_writer.create_thread(
+                    action.channel_id, action.title, action.body, action.tag_names)
+            except Exception as exc:
+                # Duck-typed on purpose: discord.py's HTTPException carries
+                # `status`, and the fakes in the tests carry the same two
+                # attributes, so neither this module nor its tests import it.
+                status = getattr(exc, "status", None) or getattr(exc, "code", None)
+                if status != 429 or attempt >= cfg.BACKFILL_MAX_RETRIES:
+                    raise
+                wait = float(getattr(exc, "retry_after", 0) or delay)
+                log.warning("rate limited creating a thread for %s; waiting %.1fs "
+                            "(attempt %d)", action.idea_id, wait, attempt + 1)
+                await asyncio.sleep(wait)
+                delay *= 2
+        raise RuntimeError("unreachable")  # pragma: no cover
+
     async def _apply_one(self, action: Any, roadmap: Snapshot) -> bool:
         """Do one action for real. Returns False for state-only actions."""
         if isinstance(action, (ReviewItem, RecordBaseline)):
@@ -292,8 +326,13 @@ class SyncEngine:
             await self._roadmap().save(_set_field(action.idea_id, action.field_name,
                                                   action.value))
         elif isinstance(action, CreateThread):
-            thread_id = await self.forum_writer.create_thread(
-                action.channel_id, action.title, action.body, action.tag_names)
+            # [b8-backfill]. Pace the batch and ride out a 429. `pace` is 0 on
+            # the ordinary cycle -- a reconcile plans a handful of actions and
+            # must not sleep -- and only `backfill` sets it.
+            if self.pace and self._threads_made:
+                await asyncio.sleep(self.pace)
+            thread_id = await self._create_thread_with_backoff(action)
+            self._threads_made += 1
             # Checkpoint the link on both sides *immediately*: an interruption
             # after this point resumes, it does not open a second thread.
             if self.store is not None and not isinstance(self.store, StoreView):

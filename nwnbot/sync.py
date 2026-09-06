@@ -663,11 +663,19 @@ class PlanContext:
     # off in config: measured recall does not justify telling a reporter their
     # report may be a duplicate. The review entry is filed either way.
     dupe_post_in_thread: bool = False
+    # [b8-backfill]. Who earns a Discord thread. An empty `staff_players` means
+    # nobody is staff, so every open item qualifies — the pre-b8 behaviour, which
+    # keeps every test written before this policy planning what it always did.
+    staff_players: frozenset[str] = frozenset()
+    staff_thread_statuses: frozenset[str] = frozenset()
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "tag_groups", dict(self.tag_groups))
         object.__setattr__(self, "channel_types", dict(self.channel_types))
         object.__setattr__(self, "players", dict(self.players))
+        object.__setattr__(self, "staff_players", frozenset(self.staff_players))
+        object.__setattr__(self, "staff_thread_statuses",
+                           frozenset(self.staff_thread_statuses))
 
     def group_for_tags(self, tag_names: Iterable[str]) -> str | None:
         for name in tag_names:
@@ -684,6 +692,29 @@ class PlanContext:
             if kind == item_type:
                 return channel_id
         return None
+
+    def earns_thread(self, idea: Mapping[str, Any]) -> bool:
+        """Does this item earn a Discord thread? ``[b8-backfill]``, settled.
+
+        Called only after the caller has established the item is open — not
+        hidden, not a dupe row, merit unpaid, status not terminal. This answers
+        the remaining question: *is anyone waiting to hear about it?*
+
+        A **player's** item qualifies at any open status; someone reported it and
+        is owed an answer whether it is `wip` or still `planned`. A **staff**
+        item qualifies only at `soon` or beyond, because the admin does not need
+        notifying about their own backlog. An item with **no player** counts as
+        staff: an unattributed item is the admin's own.
+
+        With no staff configured this returns True for everything, which is what
+        a hand-built PlanContext in a test gets.
+        """
+        if not self.staff_players:
+            return True
+        player = str(idea.get("player") or "")
+        if player and player not in self.staff_players:
+            return True
+        return str(idea.get("status") or "") in self.staff_thread_statuses
 
     def idea_url(self, idea_id: str) -> str:
         return f"{self.editor_url.rstrip('/')}#idea-{idea_id}" if self.editor_url else ""
@@ -1221,6 +1252,11 @@ def _plan_new_thread(actions: list[Action], idea: Mapping[str, Any],
         _review(actions, view, REVIEW_UNKNOWN_STATUS, idea_id,
                 f"idea {idea_id!r} has status {status!r}, which is not one of the ten",
                 idea_id=idea_id)
+        return
+    # Nobody is waiting on this one yet. Silent, not a review item: it is the
+    # normal state of most of the backlog, and it changes on its own the moment
+    # the item is promoted. See PlanContext.earns_thread.
+    if not ctx.earns_thread(idea):
         return
 
     item_type = str(idea.get("type") or "")

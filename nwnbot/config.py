@@ -85,6 +85,51 @@ TAG_MAP_PATH = "tag-map.json"
 # Merit value by roadmap item type.
 MERIT_BY_TYPE: dict[str, int] = {"Defect": 1, "Enhancement": 2, "Exploit": 3}
 
+# --------------------------------------------------------------------------
+# Who gets a Discord thread — [b8-backfill], settled 2026-09-05
+#
+# One policy, shared by the one-off `backfill` and the live `serve` loop,
+# because they run the same planner. A filter that lived only in the command
+# would let `serve` try to open a thread for every open item on its first cycle,
+# blow the action cap and abort every run — jamming the Discord -> roadmap
+# direction too, since a cycle aborts whole.
+#
+#   * A **player's** item earns a thread at any open status. Someone is waiting
+#     to hear back, whether the item is `wip` or still `planned`.
+#   * A **staff** item earns one only once it is `soon` or beyond. The admin does
+#     not need notifying about their own backlog, and 89 of the 125 open staff
+#     items are `planned`/`later` — threads that would sit dead in the forum.
+#
+# Measured 2026-09-05 against the live roadmap: 100 of 189 open items eligible,
+# 64 player-reported and 36 staff near-term.
+# --------------------------------------------------------------------------
+
+#: Roadmap `player` names that are staff rather than reporters. Nothing in
+#: roadmap.yaml marks a role — `players:` is a flat list of names — so this is
+#: an explicit list, not something derived. A name absent here is treated as a
+#: player, which is the generous direction: the cost of being wrong is one extra
+#: thread, not a missed notification. **An item with no `player` at all counts as
+#: staff**, since an unattributed item is the admin's own. Review item [r16].
+STAFF_PLAYERS: frozenset[str] = frozenset({"HomelessSon (Server Admin)"})
+
+#: The statuses at which a *staff* item earns a thread — "soon or beyond".
+#: This is the ordered prefix of STATUSES down to `soon`, minus the terminal
+#: ones; asserted below so inserting a status upstream cannot silently change
+#: the policy.
+STAFF_THREAD_STATUSES: frozenset[str] = frozenset({
+    "implemented", "confirmed", "manual", "design", "wip", "soon",
+})
+
+#: Seconds between thread creations during a backfill batch. Discord's forum
+#: create endpoint is rate-limited and a hundred threads back to back is exactly
+#: the shape that trips it; 2s is the floor the item settled on.
+BACKFILL_MIN_INTERVAL = 2.0
+
+#: How many times one thread creation is retried after a 429 before the batch
+#: gives up. Waits double each time, starting from the server's own
+#: `retry_after` when it sends one.
+BACKFILL_MAX_RETRIES = 5
+
 #: Forum -> item type. Settled: the *forum*, never the tag, decides the type.
 BUGS_ITEM_TYPE = "Defect"
 FEATURES_ITEM_TYPE = "Enhancement"
@@ -556,6 +601,10 @@ __all__ = [
     "DUPE_LOW_THRESHOLD",
     "DUPE_NOTES_MAX_CHARS",
     "DUPE_POST_IN_THREAD",
+    "BACKFILL_MAX_RETRIES",
+    "BACKFILL_MIN_INTERVAL",
+    "STAFF_PLAYERS",
+    "STAFF_THREAD_STATUSES",
     "DUPE_TITLE_WEIGHT",
     "BUGS_ITEM_TYPE",
     "CREATION_ONLY_FIELDS",

@@ -260,14 +260,40 @@ a default `<pre>` does not wrap and would push a card wider than the content col
 `sanitize_notes` byte for byte; the second round trip is a fixed point with fences in the
 corpus.
 
-### `[b8-backfill]` — status: blocked
-*Blocked: human-gated by design; the batch must not run unattended. See review item `r4`.*
-`backfill` runs `plan_roadmap_to_discord()` over open, non-hidden, non-`dupe_of` items, writes
-`backfill-plan.md` grouped by tag with a total, and stops. Re-running with `--yes` executes at
-≥2s between thread creations with exponential backoff on 429, checkpointing each new thread id
-into its roadmap item immediately so an interruption resumes rather than double-posts.
-**Acceptance:** against fakes, a simulated interruption halfway through creates no duplicates on
-resume.
+### `[b8-backfill]` — status: done
+*Unblocked 2026-09-05: `[r4]` answered, and the eligibility policy settled with it.*
+`backfill` runs `plan_roadmap_to_discord()`, writes `backfill-plan.md` grouped by tag with a
+total and the exact command to run it, and stops. Armed, it executes paced with backoff.
+
+**Eligibility is planner policy, not a flag on the command** — the finding that shaped the item.
+`backfill` and the live `serve` loop run the *same* planner, so a filter living only in the
+command would let `serve` plan a thread for every open item on its first cycle, blow the action
+cap and abort — and since `SyncEngine.cycle` aborts whole, that would take the Discord→roadmap
+direction down with it. The policy therefore lives in `PlanContext.earns_thread`, is owned by
+`config.py`, and both paths share it:
+- a **player's** item earns a thread at any open status — someone is waiting to hear back;
+- a **staff** item earns one only once it is `soon` or beyond (`STAFF_THREAD_STATUSES`, asserted
+  equal to the ordered prefix of `STATUSES` so an inserted status cannot silently move it);
+- an item with **no `player`** counts as staff — an unattributed item is the admin's own;
+- ineligible is **silent**, not a review item: it is the normal state of most of the backlog,
+  and it changes by itself the moment the item is promoted.
+- `earns_thread` is consulted **only on the create branch**, so demoting an item never orphans a
+  thread it already has.
+
+Arming needs three things, not two: `--yes`, `NWNBOT_DRY_RUN=0`, **and `--cap` at least the
+planned count**. The count is the confirmation — `[r4]` settled that the live run is the
+admin's, and typing the number is how they take it. The report is written even when the cap
+refuses, because it is what you read before confirming.
+
+`[b7]` already checkpointed each new thread into both the store and the idea's `discord:` field
+immediately, so the resume story needed no new code — only the pacing
+(`BACKFILL_MIN_INTERVAL`, 2s), the 429 backoff (`BACKFILL_MAX_RETRIES`, doubling from the
+server's own `retry_after`), and letting `--yes` through.
+
+**Acceptance:** met. A writer that dies after two threads leaves two checkpointed on both sides;
+the resume opens exactly the remaining four and no idea ends with two threads. Verified beyond
+the fixtures against a snapshot of the **live** roadmap: 97 threads planned, 97 created through
+fakes with 97 `discord:` writes and 0 failures, and an immediate re-run planned **0**.
 
 ---
 
@@ -353,11 +379,28 @@ the only field it ever updates on an existing idea is `group`, so a manual promo
 `Exploit` is never reverted by a later sync. Any future item that wants to update `type` must
 keep that property or it silently downgrades an exploit from 3 merit to 1.
 
-### `[r4]` 2026-09-05 — Backfill approval gate — status: open
+### `[r4]` 2026-09-05 — Backfill approval gate — status: answered
 `[b8-backfill]` would create ~100+ forum threads in one run.
 **Proposed:** autopilot may implement and test `backfill` against fakes, but the live run is
 always yours: read `backfill-plan.md`, then run `backfill --yes` by hand.
-**Answer:** _(unanswered)_
+**Answer:** 2026-09-05 — approved as proposed, and the admin settled the eligibility policy at
+the same time, which turned out to be the larger half of the question.
+
+The item as written would have opened a thread for every open item: **189** of them, of which
+**125 are the admin's own** and 113 are `planned`/`later` — threads addressed to nobody, sitting
+dead in the forum. Counting first is what turned a one-line approval into a policy:
+
+> All open items that are **reported by a player** (any open status), **or** reported by an
+> admin/DM **and** at `soon`, in progress, or beyond — so `planned`/`later` are ignored for
+> staff-reported ideas.
+
+Measured against the live roadmap: **97 threads**, 61 player-reported and 36 staff near-term.
+(99 qualify; two are skipped because they carry **no `type`** — `resize-dragonshape-so-it-can-fit-through-doors-transitions`
+and `ring-bearer-quest` — and the planner refuses to guess which forum or how much merit. Those
+are two real gaps in `roadmap.yaml` worth filling.)
+
+The live run stays the admin's, now behind three keys rather than two: `--yes`,
+`NWNBOT_DRY_RUN=0`, and a `--cap` naming the planned count.
 
 ### `[r5]` 2026-09-05 — Bot account credentials — status: answered
 The bot needs a roadmap account (`python3 bin/roadmap-users.py add nwnbot --role bot`, after
@@ -605,6 +648,20 @@ the scorer, and before arming `serve`. Turning the gate on is a decision, not a 
 and on this evidence the thing that earns it is semantic matching, not a different number.
 **Answer:** _(unanswered)_
 
+### `[r16]` 2026-09-05 — Who counts as staff? — status: open
+Blocks nothing; the conservative option is shipped. Raised by `[b8-backfill]`, whose eligibility
+policy turns on it.
+Nothing in `roadmap.yaml` marks a role — `players:` is a flat list of 19 names — so
+`config.STAFF_PLAYERS` is an explicit list, not something derived. It currently holds one name:
+`HomelessSon (Server Admin)`. A name absent from it is treated as a player, which is the
+generous direction: the cost of being wrong is one extra thread, never a missed notification.
+**Proposed:** confirm that is the whole staff list before `backfill --yes` runs. If any DM has
+filed roadmap items under their own name, add them — otherwise their `planned`/`later` items
+each open a thread nobody is waiting on. Of the 19 names, the ones with enough open items to
+matter are `Sync (Shync)` (14), `Rajmund (Ray)` (11) and `Tukwut` (9); the rest have five or
+fewer.
+**Answer:** _(unanswered)_
+
 ---
 
 ## Log
@@ -621,3 +678,4 @@ One line per completed item: id · date · commit · what shipped.
 `[b10-wording]` · 2026-09-05 · 98b597c · Every `PROVISIONAL WORDING` marker replaced by the settled string and the review item that settled it; the truncation marker now says the text was cut, and a bot-opened thread says where it came from.
 `[b11-code-tags]` · 2026-09-05 · 3216a94 + nwn_homers_lotr@dd91ee5a4a3 · `<code>`/`<pre>` on the sanitizer whitelist in all four places it is mirrored, and the render round trip to match; verified against the real `sanitize_notes`, not a local copy of it.
 `[b9-dupes]` · 2026-09-05 · a0fba1f · Stdlib duplicate scoring wired into the existing planner seam, every outcome a proposal and `dupe_of` unwritable by any path; thresholds measured against the roadmap's own five confirmed duplicates rather than guessed, which is what put `DUPE_POST_IN_THREAD` off and produced `future-llm-dupe-matching.md`; `review` and `dupes` subcommands added because rejecting a suggestion and calibrating a threshold were both unreachable.
+`[b8-backfill]` · 2026-09-05 · TBC · The batch, paced and resumable — but the item's real content turned out to be *who earns a thread*: eligibility is planner policy shared by `backfill` and `serve`, because a filter in the command alone would have jammed every cycle at the action cap. 189 candidates down to 97, verified end to end against a live-roadmap snapshot.
