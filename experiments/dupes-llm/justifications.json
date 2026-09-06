@@ -1,0 +1,1638 @@
+{
+ "anaralia-spider-queen-second-drop": {
+  "key": "7a885fb48196349b",
+  "just": "Implement second drop loot table for Anaralia spider queen boss encounter."
+ },
+ "bard-curse-song-not-lowering-concentration-skill": {
+  "key": "5c5e9f0cf37bfff9",
+  "just": "Bard curse song fails to reduce caster concentration skill against specific boss enemies."
+ },
+ "lag-issue-with-playtimedb-reported": {
+  "key": "69144ba6faa7a38e",
+  "just": "Fix login lag by moving database schema rebuilds to server startup instead of per connection."
+ },
+ "smoking-pipeweed-to-cure-soul-fatigue": {
+  "key": "b784971a6f15afc5",
+  "just": "Implement smoking pipeweed in the chamber as an alternative method to remove soul fatigue status effects."
+ },
+ "boss-enrages-after-killing-player": {
+  "key": "7551f4801e43f1c4",
+  "just": "Fix boss enrage mechanic to distinguish between player death and actual retreat behavior"
+ },
+ "level-drain-property-not-removable-from-forge": {
+  "key": "bd39b7f6713f5200",
+  "just": "Smithing system should allow removal of level drain property from forged items."
+ },
+ "rng-based-gear-diablo-world-of-warcraft-style": {
+  "key": "f1068632e2bbdac2",
+  "just": "Implement randomized loot generation to replace static items and promote player trading."
+ },
+ "balance-divine-might": {
+  "key": "abdfddc82977d4e5",
+  "just": "Adjust Divine Might mechanics to respect standard damage reduction and immunity rules."
+ },
+ "more-combat-dummys-request": {
+  "key": "0acfe9502a375de7",
+  "just": "Add combat training dummies with configurable boss resistances for damage testing."
+ },
+ "combat-dummy-can-be-slain": {
+  "key": "84164fda73860086",
+  "just": "Combat dummy should remain invulnerable to damage, effects, and healing during testing sessions."
+ },
+ "add-more-weapons-quarterstafs-and-doublesided": {
+  "key": "8b7f3ecf01275eb0",
+  "just": "Add new weapon types including quarterstaffs and double-sided variants to the game arsenal."
+ },
+ "balrog-mass-harm-review": {
+  "key": "2609530cce205ab4",
+  "just": "Implement a dodge chance for unavoidable scripted damage from boss enemies like Balrogs."
+ },
+ "add-more-rapiers-and-scimitars": {
+  "key": "b344e4c224a14039",
+  "just": "Request to add new melee weapon types such as rapiers and scimitars to the game."
+ },
+ "meaningwave-bardsong-not-firing": {
+  "key": "b47f34b4d71cdfa0",
+  "just": "Summoned companion fails to activate its designated bardic performance ability during combat encounters."
+ },
+ "custom-races-bugged": {
+  "key": "53c69f35fa938fb4",
+  "just": "Adjust the incorrect statistical values for the custom race brownie character class."
+ },
+ "teleport-to-weathertop-doesnt-work-on-the-test-server": {
+  "key": "1151488990f54d4f",
+  "just": "Fix broken teleport destination functionality within the homeless character rest and emote wand interaction menu."
+ },
+ "generally": {
+  "key": "7525bea941c21a8e",
+  "just": "Increase viability of underperforming classes through targeted balance adjustments"
+ },
+ "make-black-guards-more-usefull": {
+  "key": "22e35e1d34262bb5",
+  "just": "Buff the utility of black guards and epic summons for improved gameplay effectiveness."
+ },
+ "make-chamption-of-torm-more-usefull": {
+  "key": "d8fe7db4ee16a989",
+  "just": "Improve Champion of Torm ability duration and frequency to increase utility."
+ },
+ "kerfualls-disappearing-act": {
+  "key": "9bb38a2a13032c5a",
+  "just": "NPC companion disappears unexpectedly after player death instead of remaining at location or returning to spawn."
+ },
+ "persistant-map-exploration": {
+  "key": "f89d3c25654abc8e",
+  "just": "Implement permanent map exploration persistence with experience point rewards for players."
+ },
+ "make-merit-redeemed-item-rewards-like-heirlooms": {
+  "key": "a8109cc698c0d39c",
+  "just": "Allow merit redeemed items to persist across seasonal resets as heirloom artifacts."
+ },
+ "the-fell-beast-attacks": {
+  "key": "afd25ce3a27d1409",
+  "just": "Crypt guardian ignores smith allowing Fell Beast to attack player directly when horn is not possessed"
+ },
+ "resize-dragonshape-so-it-can-fit-through-doors-transitions": {
+  "key": "a91f2521a1c014e0",
+  "just": "Reduce the hitbox size of the dragon transformation to allow passage through narrow transitions."
+ },
+ "add-a-decay-to-enrage-on-retreat-mechanic": {
+  "key": "ee36e595ad6a44d7",
+  "just": "Implement boss enrage decay timer matching respawn duration to reset state upon retreat"
+ },
+ "boss-timer-standardization": {
+  "key": "d0c040c93aa58f4f",
+  "just": "Standardize boss respawn timers and out of combat reset durations for all enemies"
+ },
+ "respawn-durations-should-be-posted-for-all-mobs-in-wiki": {
+  "key": "e794c041bc27728f",
+  "just": "Add respawn duration columns to creature detail pages for all placed mobs."
+ },
+ "stores-not-linking-to-creatures-areas-anymore-no-opener": {
+  "key": "dcad7233a2a1fa6c",
+  "just": "Fix wiki store linkage errors preventing correct association with creatures and areas."
+ },
+ "kallrist-crypt-quest-only-doable-once-per-server-reset": {
+  "key": "d4c63628044e2c8a",
+  "just": "Allow multiple parties to complete the Kallrist Crypt riddle per server reset by resetting altar and chest state."
+ },
+ "modify-level-9-spells": {
+  "key": "7c71714ac206f579",
+  "just": "Adjust ninth level arcane spell utility and balance to prevent them from being disabled or useless."
+ },
+ "are-some-encounters-dynamic-based-on-alignment-set-in-the": {
+  "key": "0f94bf2ad3fc46d1",
+  "just": "Investigate whether encounter difficulty scales dynamically with player alignment settings."
+ },
+ "hellball-needs-tuning": {
+  "key": "b263bbaa7c6b5d6e",
+  "just": "Tune Hellball damage output to ensure consistent hit registration against high defense targets."
+ },
+ "allegiance-locks-15-creatures-out-of-the-bestiary": {
+  "key": "aa0cc30926f86f82",
+  "just": "Evil allegiance characters cannot encounter specific faction-gated creatures like Kham\u00fbl due to spawn restrictions."
+ },
+ "dead-marshes-need-more-mobs": {
+  "key": "83d28aa4d3c91179",
+  "just": "Increase the population density of hostile creatures within the Dead Marshes zone."
+ },
+ "house-of-the-guards-of-mordor-map-note": {
+  "key": "b7537494d7aa1697",
+  "just": "Map pin displays incorrect label for locked building in Barad-Dur."
+ },
+ "wiki-ac-calc-off-balorg-of-moria-example": {
+  "key": "7e8eb3a9885cba41",
+  "just": "Fix incorrect armor class calculation for the Balrog of Moria in the wiki database."
+ },
+ "harm-potions-for-undead": {
+  "key": "cda9ac1bd0e0b138",
+  "just": "Undead players require access to purchase harmful potions from evil faction vendors."
+ },
+ "petrification-respawn-defect-round-4": {
+  "key": "075715d2465af918",
+  "just": "Fix petrification death window to display respawn option immediately upon transformation instead of requiring a client reload."
+ },
+ "add-custom-helmet-skins": {
+  "key": "7f5ab87b3788edcb",
+  "just": "Allow players to apply custom visual skins to their character helmets."
+ },
+ "tensors-transformation-not-merging-items-reliably": {
+  "key": "a5432b9d124138e9",
+  "just": "Fix shapeshifting transformation item merging to occur only after the new form is fully active."
+ },
+ "smith-can-disenchant-negative-abilities-exclude-negative-arcance-spell-failure": {
+  "key": "e18785c3d71ed597",
+  "just": "Arcane spell failure reduction is a beneficial enchantment, not a negative property."
+ },
+ "arcane-spellfailure-ammount-now-showing-in-wiki-details": {
+  "key": "a209f95c032ee89c",
+  "just": "Update wiki to display arcane spell failure percentage for armor and shields."
+ },
+ "more-shortcuts-for-testers-in-test-realm": {
+  "key": "e1df1b55e4eb29d7",
+  "just": "Provide testers with direct teleport shortcuts to bypass initial progression requirements in the test realm."
+ },
+ "potions-to-restore-spent-spells-and-feats-day": {
+  "key": "3fed3233eaa1989c",
+  "just": "Add consumable items to restore spent spell slots and daily feat resources."
+ },
+ "attack-bonus-cap-20": {
+  "key": "eae8f7c46d2f3a9b",
+  "just": "Increase maximum attack bonus cap to allow stacking multiple combat enhancements effectively"
+ },
+ "bard-song-issues-round-2": {
+  "key": "0fe1add4770bfbf8",
+  "just": "Fix bard song attack bonus application failure caused by spell duration doubling module"
+ },
+ "henchmen-prevent-friendly-fire": {
+  "key": "aec28ce10a1fed98",
+  "just": "Meanwave guides must exclude friendly units from their area of effect spell damage calculations."
+ },
+ "witchking-both-potions-pickpocketable": {
+  "key": "0cdaa4801f1b5669",
+  "just": "Make one Witch King healing potion unpickpocketable to balance boss loot mechanics."
+ },
+ "shifter-weapon-stats-for-unarmed-shapes": {
+  "key": "7d2853498663dff6",
+  "just": "Fix unarmed shape weapon bonuses not transferring from equipped gear during shift."
+ },
+ "Commoner-troll-faction": {
+  "key": "0814a8151085d5a3",
+  "just": "Mount Gundabad garrison units are incorrectly assigned to the Commoner faction instead of being hostile enemies."
+ },
+ "encounter-spawns-levels-41-60": {
+  "key": "ec12221b53aac22c",
+  "just": "Fix encounter spawn logic to correctly calculate and assign appropriate creature difficulty levels for higher player levels."
+ },
+ "shifter-stats-defect": {
+  "key": "4788a3b6e56646dd",
+  "just": "Fix shifter stat calculation to replace base attributes instead of adding bonuses during transformation"
+ },
+ "gondor-scribe-key-exploit": {
+  "key": "3c6347c654826073",
+  "just": "Quest progression persistence and item reward timing require normalization for consistent player experience."
+ },
+ "banking-duplicate-exploit": {
+  "key": "387b8945b1c220c2",
+  "just": "Fix bank vault duplication exploit allowing infinite item extraction by resetting state on exit."
+ },
+ "lake-town-forge-not-working": {
+  "key": "4ca1d4753ce5961c",
+  "just": "Fix the broken interaction mechanics for the blacksmithing forge located in the central town area."
+ },
+ "smith-can-disenchant-negative-abilities": {
+  "key": "ea0e7470adf25223",
+  "just": "Smiths can no longer disenchant negative abilities from items"
+ },
+ "curse-song-too-many-instructions": {
+  "key": "d081908e2d1959f4",
+  "just": "Fix spell duration doubler causing too many instructions errors during crowded combat scenarios."
+ },
+ "petrification-respawn-defect-round-3": {
+  "key": "d4da1f4dcbe28d4e",
+  "just": "Petrification status effect fails to kill player after specified duration timeout expires"
+ },
+ "feat-for-more-damage-dice-to-spells": {
+  "key": "3ce14d1d74f84e7f",
+  "just": "Implement a scalable legendary feat granting additional damage dice for spellcasting abilities."
+ },
+ "multiple-epic-spell-feats": {
+  "key": "fe822a3eb8430550",
+  "just": "Allow players to select the same epic spell feat multiple times to increase daily usage limits."
+ },
+ "summanus-chest-items": {
+  "key": "fd0768bf0f2958b0",
+  "just": "Audit chest loot tables for inaccessible items and fix redundant stat bonuses on equipment."
+ },
+ "missing-map-markers": {
+  "key": "c6b5c45e371dc478",
+  "just": "Add missing area transition map markers to the Weathertop region."
+ },
+ "door-opening-time": {
+  "key": "6de3de21382a6920",
+  "just": "Increase the duration doors remain open after a player passes through them to improve accessibility."
+ },
+ "lake-town-bank-not-working": {
+  "key": "c43fbdb5cb0e1620",
+  "just": "Fix the non-functional bank service located at the Lake Town branch near the inn."
+ },
+ "ll-bonus-feat-lists": {
+  "key": "fad08ed87e8d361c",
+  "just": "Wizard class bonus feats are unavailable for selection after reaching level forty."
+ },
+ "ring-bearer-quest": {
+  "key": "290f1fb9e103a5ac",
+  "just": "Implement a faction-based PvP quest system for transporting a valuable ring item."
+ },
+ "antidupe_craft_container_invisible": {
+  "key": "717116b0e95f0fc1",
+  "just": "Remove redundant invisible anti-duping craft containers from world locations to clean up clutter."
+ },
+ "doors-auto-close-and-methshop-broken": {
+  "key": "77cfb8692a1f4da8",
+  "just": "Implement automatic closing mechanism for all interior doors after a set duration."
+ },
+ "legendary-feat-prereq-defect-1": {
+  "key": "32e32a67b259482d",
+  "just": "Clarify missing prerequisites for legendary feats to identify specific failing requirements."
+ },
+ "legendary-nui-wrapping": {
+  "key": "8b42ea487cbe827f",
+  "just": "Fix UI text overflow in Legendary Feat Picker descriptions and tooltips to ensure full readability."
+ },
+ "forge-caps-only-apply-to-forged-items": {
+  "key": "8a2286b969c872f8",
+  "just": "Fix false contraband detection for legitimately obtained high level gear that triggers illegal enchantment penalties upon entry."
+ },
+ "forge-blueprint-compare-instruction-cap": {
+  "key": "6aae9fabfc673d16",
+  "just": "Fix contraband legality check to complete processing for items with many enchantments without silent abortion."
+ },
+ "forge-glove-damage-bonus": {
+  "key": "8e3e99a47981c974",
+  "just": "Allow damage enchantments on gloves and bows at all forges"
+ },
+ "forge-warden-revert-all-instruction-cap": {
+  "key": "8c5029127136cd15",
+  "just": "Fix script error in Forge Warden revert function to prevent locking players in Pit Prison."
+ },
+ "combat-dummy": {
+  "key": "412ab9c841e265b1",
+  "just": "Implement combat dummy to measure average attacks and damage per round"
+ },
+ "forge-restrictrion-properties-exploit": {
+  "key": "89e7c5e07246011a",
+  "just": "Allow players to remove race class and alignment restrictions from gear using the forge"
+ },
+ "legendary-caster-spells-on-level-up": {
+  "key": "88ce5134f24b9342",
+  "just": "Casters lose spell selection options after level forty due to client limitations"
+ },
+ "legendary-caster-spell-slots": {
+  "key": "ed488b3fbdab0f97",
+  "just": "Caster classes should receive additional daily spell slots at every fourth legendary level beyond forty."
+ },
+ "rancid-skinner-bark-still-not-working": {
+  "key": "e50c2e079ae6ac8b",
+  "just": "Fix boss instance death script to broadcast correct location alert and enable respawn timer"
+ },
+ "shayan-subrace-revivial": {
+  "key": "db6556271193c2d8",
+  "just": "Implement functional subrace selection mechanics and associated documentation for player customization."
+ },
+ "concerning-pipeweed": {
+  "key": "9375f514323a32be",
+  "just": "Add fast travel destination to Hobbiton for low level characters"
+ },
+ "bestiary-boss-breakdown": {
+  "key": "964903bda5e052bf",
+  "just": "Add a filter to the bestiary interface to display only tracked boss enemies."
+ },
+ "season2-test-announce": {
+  "key": "3ae6960a6d568eb3",
+  "just": "Enable level and gold modification tools for testing purposes."
+ },
+ "wiki-charts-by-week": {
+  "key": "f34e81f4bdf510cb",
+  "just": "Update player activity charts to display daily data and weekly summaries based on available history length."
+ },
+ "numenor-chests": {
+  "key": "2943a351770851f5",
+  "just": "Fix broken loot chests in Noirinan area that were locked with impossible difficulty and yielded no items."
+ },
+ "petrification-timeout-2": {
+  "key": "c12ed228ac16df40",
+  "just": "Fix petrification timeout logic to ensure proper death and respawn mechanics after duration expires."
+ },
+ "mw-questgiver-ignore-combat": {
+  "key": "7df7781286abf41b",
+  "just": "Make Meaningwave quest givers immune to combat targeting by all creatures."
+ },
+ "palette-mapping": {
+  "key": "96c1d0a547a3d875",
+  "just": "Implement automated documentation for item and creature locations within the game toolset palette."
+ },
+ "epic-summon-unsummon": {
+  "key": "35c7c5ec4239f8ca",
+  "just": "Epic summon companions fail to remain stationary when dismissed by the player."
+ },
+ "hgll-banked-skillpoints-lost": {
+  "key": "43390614daf4fbcd",
+  "just": "Fix legacy leveling system to allow banked skill point carryover beyond level forty."
+ },
+ "hgll-skill-point-exploit": {
+  "key": "b6014b34109e74fe",
+  "just": "Fix exploit allowing players to retain spent skill points while resetting character progression for infinite gains."
+ },
+ "bard-song-tweak": {
+  "key": "773c95294b4f78b5",
+  "just": "Allow bard songs to reduce mob immunity and resistance rather than dealing direct damage."
+ },
+ "unlock-more-inacessible-creature": {
+  "key": "1ce98bd01b21970c",
+  "just": "Implement spawn locations and stat scaling for currently inaccessible creature types."
+ },
+ "gondor-scribe": {
+  "key": "9f9797226812367e",
+  "just": "Fix missing Gondor Scribe NPC in the Well of Souls quest chain."
+ },
+ "party-loot-pickpocket": {
+  "key": "97de8c76d060e2c1",
+  "just": "Party loot roll incorrectly triggers on pickpocketing living NPCs instead of only corpse sources."
+ },
+ "higher-difficulty-ceiling-revamp": {
+  "key": "f037222ba93b8792",
+  "just": "Increase endgame difficulty by introducing new bosses and higher challenge levels."
+ },
+ "standard-map-notes": {
+  "key": "65f3d4c0715e524f",
+  "just": "Standardize map notes for area transitions and conversation points to display destination names."
+ },
+ "kallrist-forge-negative-resistance": {
+  "key": "d5b7c94df0f1a584",
+  "just": "Add negative energy resistance to wearable gear via the forge customization system."
+ },
+ "MW-Bardsong-Bug": {
+  "key": "5387d514c44ee85a",
+  "just": "Companions stuck spamming bard songs instead of following tactical commands"
+ },
+ "kallrist-forge": {
+  "key": "8da3f35e49fd52f3",
+  "just": "Request to add a new forge customization option within the Kallrist Crypt game location."
+ },
+ "Legendary-Feats": {
+  "key": "9347a574dbba8fc5",
+  "just": "Implement a unified legendary feat system with balanced distribution across pure and mixed character classes."
+ },
+ "dye-kit": {
+  "key": "48e111e43dca6d84",
+  "just": "Request dye kit functionality to apply colors to cloaks and metallic armor materials."
+ },
+ "xp-bank-intial3": {
+  "key": "8f2d2c65d4fd8d4f",
+  "just": "Restrict XP banking eligibility to characters who have reached level four or higher."
+ },
+ "elemental-augment-toggle": {
+  "key": "7d7b5556d9836267",
+  "just": "Implement a toggle augment for cantrips that converts all elemental spells to a single damage type."
+ },
+ "Legendary-travel-menu": {
+  "key": "be65e89650c69b46",
+  "just": "Remove documentation for non-existent legendary travel menu feature."
+ },
+ "jailed-for-appearance-crafting": {
+  "key": "46ecd124fa9221d4",
+  "just": "Item appearance customization incorrectly flags lawful gear as contraband during login scans."
+ },
+ "Ammo-shortage": {
+  "key": "cd88328d9499cc10",
+  "just": "Implement infinite ammunition restocking at armouries and add a replicator item for endless ammo supply."
+ },
+ "hgll-skills-gear": {
+  "key": "0172c85cc622f619",
+  "just": "Intelligence stat calculation for skill point allocation must use base values rather than modified totals."
+ },
+ "normal-and-epic-summons": {
+  "key": "e50cb67c524fe2d9",
+  "just": "Allow simultaneous deployment of one epic companion and one normal summonable creature."
+ },
+ "2x-gold-defect": {
+  "key": "9817ec99198c1393",
+  "just": "Fix gold purchase multiplier not applying to merchant buy limits despite being active."
+ },
+ "remove-multi_class-xp-penalty": {
+  "key": "efb8233e9d8240df",
+  "just": "Remove the experience point penalty associated with multiclass character progression."
+ },
+ "xp-requirement-normal": {
+  "key": "0c7c4968c00615ed",
+  "just": "Adjust experience point scaling for character levels forty through sixty to ensure balanced progression."
+ },
+ "Transition-Pelennor-Fields-2-Gates": {
+  "key": "9d68bf3969911af1",
+  "just": "Add a teleport transition between the Pelennor Fields and Minas Tirith gates."
+ },
+ "Elronds-Sword-Bugged": {
+  "key": "b344f2105cdca57a",
+  "just": "Fix jail detection for unmodified Longsword of Elrond due to stale legal fingerprint."
+ },
+ "CEP3-CCOH": {
+  "key": "a932daccedc1fd1a",
+  "just": "Add community expansion pack and character customization override hakpak to the module."
+ },
+ "mw-counterspell-2": {
+  "key": "7ea5d25aee607833",
+  "just": "Adjust henchman counterspell mechanics including cooldowns, checks, and resource consumption."
+ },
+ "goblin-caves-door": {
+  "key": "45a768e5fc2ad15b",
+  "just": "Fix broken door interaction preventing access to the lower section of the goblin cave area."
+ },
+ "newbie-starting-gear-01": {
+  "key": "929f7764978983e1",
+  "just": "Provide account-wide starter gear with haste and resistances for new characters."
+ },
+ "toggle-reboot-on-empty": {
+  "key": "ce34a2a8e16cc1cc",
+  "just": "Server admin requests configurable warning message for automatic server restart when player count reaches zero."
+ },
+ "stackable-scrolls": {
+  "key": "f286741bca2da602",
+  "just": "Allow players to stack consumable scrolls in their inventory up to a maximum quantity of ninety-nine items."
+ },
+ "petrification-timeout": {
+  "key": "345fbd1485904046",
+  "just": "Implement a time limit for NPC petrification causing player death and respawn with periodic warnings."
+ },
+ "high-wizard-pulse-defect": {
+  "key": "31e259173a855318",
+  "just": "Fix High Wizard self-damage caused by incorrect elemental damage logic in Gondor."
+ },
+ "wildshape-shifter-item-merge": {
+  "key": "fadf3184a39cf317",
+  "just": "Merge all equipped items into shifter and wildshape forms to improve damage output."
+ },
+ "Hobbit-Subrace": {
+  "key": "b2c46ff650bd6e49",
+  "just": "Add the hobbit subrace to the character creation subsystem for player selection."
+ },
+ "Ithilien-Transitions": {
+  "key": "dac3cee7f82254f5",
+  "just": "Fix incorrect teleport destination when returning from the northern Ithilien forest zone."
+ },
+ "knock-spell-issue": {
+  "key": "989ea8cbf1342591",
+  "just": "Fix Knock spell functionality for plot doors and containers that do not require keys."
+ },
+ "Morannon-Spell-Failure": {
+  "key": "127e0f501f761568",
+  "just": "Arcane spell failure at Morannon resting location requires Will save check to resist."
+ },
+ "bard-song-2": {
+  "key": "a409c4820a97f846",
+  "just": "Fix bard song damage calculation to apply correct flat bonus values"
+ },
+ "weapon-forge-gp-too-low": {
+  "key": "8630ad6d0a663129",
+  "just": "Forge NPC fails to update state correctly during weapon crafting and enchantment stripping processes."
+ },
+ "breebank-storage-loss-logout": {
+  "key": "da9a3e5d5294b12c",
+  "just": "Player inventory items are permanently deleted upon logout when the banking interface is not accessed."
+ },
+ "Character-Rebirths": {
+  "key": "c66b9176a8faa7ad",
+  "just": "Implement a character reset system allowing players to restart at lower levels with cumulative stat and feat bonuses."
+ },
+ "kallrist-crypt-key-missing": {
+  "key": "0e80b63e6a42266c",
+  "just": "Fix broken riddle puzzle mechanics preventing key acquisition and subsequent area access."
+ },
+ "kallrist-dungeon-removed": {
+  "key": "34ede93ea2f9982f",
+  "just": "Restore the missing teleport waypoint and dungeon exit trigger to enable access to the Plane of the Render area."
+ },
+ "Hard-mode-no-fasttravel": {
+  "key": "0541bf54c31d1a73",
+  "just": "Implement hardcore mode with permadeath and restricted fast travel mechanics."
+ },
+ "server-seasons-character-wipe": {
+  "key": "2dd2d515bf39827e",
+  "just": "Implement a seasonal reset system that archives achievements and partially rolls over character experience points."
+ },
+ "respawn-tracker-well-of-eru": {
+  "key": "7645c6ec0b5f4850",
+  "just": "Add a respawn tracker for defeated bosses in the dungeon area"
+ },
+ "rod-of-fast-combat": {
+  "key": "7082e88e2e9d9848",
+  "just": "Implement a balanced combat item with cooldowns and limited daily usage to prevent server-wide instant kills."
+ },
+ "Gear-to-boost-specific-mage-spells": {
+  "key": "7cc0771ce8f81f98",
+  "just": "Provide gear that enhances caster spell damage and utility against high tier bosses."
+ },
+ "Discord-server-shout-integration": {
+  "key": "a3c7dbde0bc07d2b",
+  "just": "Implement bidirectional communication between Discord chat channels and in-game server shout functionality."
+ },
+ "Socket-system-for-weapons": {
+  "key": "7cd0d7c4985cc67f",
+  "just": "Implement a weapon socketing system with defined maximum damage and attribute limits"
+ },
+ "Card-mendard-drops-elronds-sword": {
+  "key": "9804da5404c3d8ef",
+  "just": "Fix duplicate item collision by renaming modified unique weapon to prevent account bans."
+ },
+ "party-xp-given-to-whole-party-issue": {
+  "key": "b2b8d18b9125098d",
+  "just": "Party experience distribution incorrectly applies to all members regardless of their current location."
+ },
+ "improved-invis-issues-part2": {
+  "key": "6a03ea7265e81a70",
+  "just": "Fix spell duration extension logic to correctly apply visual effects and concealment states for improved invisibility."
+ },
+ "forge-warden-script-overflow-isssue": {
+  "key": "e83e544b1630f411",
+  "just": "Fix Forge-Warden script overflow causing player entrapment in pit prison"
+ },
+ "duration-divine-might-issue": {
+  "key": "1eed245d51b62005",
+  "just": "Fix Divine Might duration doubling logic to correctly apply extended cast restrictions alongside the buff effect."
+ },
+ "wiki-missing-creature-numarockblackhand": {
+  "key": "a64f9c5ce0cb1e9b",
+  "just": "Fix respawn logic to preserve custom creature overrides and ensure unique wiki pages for distinct entities."
+ },
+ "Bard-song-boost-not-working": {
+  "key": "ec1b1986071abf60",
+  "just": "Bard song mechanics are malfunctioning and require immediate debugging to restore intended functionality."
+ },
+ "wiki-inaccessible-items-audit": {
+  "key": "c3164ff075ce0143",
+  "just": "Audit inaccessible items to identify incorrectly locked loot that should be available to players."
+ },
+ "wiki-playerguide-legendarylevelingare": {
+  "key": "8871193b8c92899b",
+  "just": "Update leveling guide text to clarify that the legendary area does not allow combat or experience gain."
+ },
+ "teleport-to-fornost": {
+  "key": "ff6efab15fec0ee9",
+  "just": "Fix broken teleport functionality for the Fornost destination after removing the dead area from the available list."
+ },
+ "forge-zero-value-exploit": {
+  "key": "16f16f4c351a2bbb",
+  "just": "Fix zero-cost forge exploits for items lacking resale value and implement per-forge property caps"
+ },
+ "forge-disenchant": {
+  "key": "c159091d9852aca9",
+  "just": "Implement staged disenchanting at all forges to prevent minting illegal high value custom items"
+ },
+ "forge-moria-op": {
+  "key": "eab6dd77af271b61",
+  "just": "Balance the Forge of Moria economy to reduce excessive power scaling from low-cost godlike amulets."
+ },
+ "forge-quarantine": {
+  "key": "3891d115f740226e",
+  "just": "Forge Wardens can restore illegally forged gear quarantined in the Pit Prison to its original stock condition."
+ },
+ "forge-caps": {
+  "key": "073cdbfef4ff1881",
+  "just": "Forge enchantment system displays remaining gold value cap for player awareness."
+ },
+ "smith-confirm-gp": {
+  "key": "6def011cb5d93b24",
+  "just": "Smith NPC dialogue should display current gold and required gold for enchanting services."
+ },
+ "forge-bree-starter": {
+  "key": "5edd32325232498b",
+  "just": "Add an affordable starter forge to the Bree starting area for new players."
+ },
+ "max-ability-24": {
+  "key": "dbc205d2b25fd411",
+  "just": "Increase maximum ability score bonus cap from twelve to twenty four points"
+ },
+ "sticky-toggles": {
+  "key": "82e37266c5208326",
+  "just": "Combat mechanics should allow players to toggle specific attack modes on and off during gameplay."
+ },
+ "bard-song": {
+  "key": "4c56736f7005f9bf",
+  "just": "Implement bard song customization mechanics to match existing curse song functionality."
+ },
+ "buff-durations-2x": {
+  "key": "cdf83e4e5ef8c92c",
+  "just": "Player cast spells have doubled duration effects applied to all connected players on the server."
+ },
+ "max-hp-levelup": {
+  "key": "0d54821d17aae282",
+  "just": "Implement automatic maximum hit point calculation upon character level advancement to prevent manual rerolling."
+ },
+ "double-feats": {
+  "key": "06ca8289875e7ca9",
+  "just": "Corrected duplicate entries for weapon focus and improved critical feats in the character enhancement package."
+ },
+ "curse-song-doc": {
+  "key": "bbd8b04fd18815e2",
+  "just": "Document the documented curse song behavior within the customizations wiki page for clarity"
+ },
+ "balrog-vanish": {
+  "key": "176fc7bf718f3203",
+  "just": "Fix Balrog respawn timing so it resets quickly after the final player leaves the area."
+ },
+ "dimholt-king": {
+  "key": "14747204d6288765",
+  "just": "Add questline for Dimholt Forgotten King and fix companion bark frequency and damage handling mechanics"
+ },
+ "khamul-pulse": {
+  "key": "16697ab91dd4c651",
+  "just": "Fix Khamul's pulse attack to haunt players across the entire module after death."
+ },
+ "xp-bank-reqs": {
+  "key": "e2832919b38f1ecd",
+  "just": "Remove experience point deposit and withdrawal restrictions from the banking system interface"
+ },
+ "bestiary-tracking": {
+  "key": "2f7549a99b21c813",
+  "just": "Implement bestiary tracking to award kill credit for both party and solo gameplay modes."
+ },
+ "faction-isengard-dol": {
+  "key": "f58a77fb22045c84",
+  "just": "Fix faction reputation and progression issues in Isengard and Dol Guldur zones."
+ },
+ "family-bank": {
+  "key": "284f8830cb2a8fbd",
+  "just": "Account-wide family bank should persistently share experience points, gold, and strongbox storage capacity across all characters."
+ },
+ "faction-helms-edoras": {
+  "key": "bc3690fe7304e29f",
+  "just": "Fix faction alignment for Edoras NPCs in Helms Deep cave and road areas"
+ },
+ "faction-neutral-orbs": {
+  "key": "18177af8ff19d41e",
+  "just": "Fix faction aggression logic to ensure neutral alignments are attacked by both sides without relying on external teleport destinations."
+ },
+ "faction-hall-sauron": {
+  "key": "011cef4b6e36c71e",
+  "just": "Fix faction logic errors causing incorrect combat interactions between specific dungeon bosses."
+ },
+ "legolas-area": {
+  "key": "a49be09153ee62b6",
+  "just": "Fix teleport destination entry glitches causing disappearance and periodic damage to the player character."
+ },
+ "well-eru-spell-exploit": {
+  "key": "ca4712efde6a45ef",
+  "just": "Fix spell casting exploit allowing magic use at teleport destinations after resting"
+ },
+ "elronds-quest": {
+  "key": "4969ba7c96efb45b",
+  "just": "Quest progression blocked by inability to access required crafting stations despite possessing necessary materials"
+ },
+ "bleed-regen-loop": {
+  "key": "76bdbfad31a76539",
+  "just": "Fix health regeneration preventing character death during continuous bleeding damage states"
+ },
+ "mirkwood-basilisk": {
+  "key": "cf63576d75424578",
+  "just": "Corrected the Mirkwood door teleport destination to the Basilisk King encounter area instead of an empty tomb."
+ },
+ "lonely-mountain-merchant": {
+  "key": "b5421dd634b603ee",
+  "just": "Fix missing dialogue for merchants located within the Temple of Marr instance."
+ },
+ "dol-guldur-smithy-buy": {
+  "key": "16bae3e8ae5b4ab5",
+  "just": "Smithy vendor item type filtering logic requires auditing and correction across all instances."
+ },
+ "white-hand-blaster": {
+  "key": "e424dcd12b9061c3",
+  "just": "Fix faction validation error for White Hand Blaster weapon in the Magic Room"
+ },
+ "typo-pass": {
+  "key": "3334cd629d0dc12d",
+  "just": "Fix spelling errors in creature names, item descriptions, and dialogue text."
+ },
+ "no-xp-kills": {
+  "key": "03ad4fbcf7df783a",
+  "just": "Corrected experience point calculation errors occurring after extended server downtime periods."
+ },
+ "rod-fast-cast": {
+  "key": "77db77231f5e745a",
+  "just": "Player requests a new equipment item designed to accelerate buffing speed."
+ },
+ "rod-fast-lore": {
+  "key": "49c562288b3d0773",
+  "just": "Allow players to use their personal lore skill to identify items within their inventory."
+ },
+ "wellmart-autoid": {
+  "key": "868ed604496b2c87",
+  "just": "Allow the vendor interface to automatically identify all carried items upon interaction."
+ },
+ "ammo-stack999": {
+  "key": "61f35f295f806b8e",
+  "just": "Increase maximum stack size for ammunition items to nine hundred ninety nine"
+ },
+ "potion-stack99": {
+  "key": "a92b1261788be341",
+  "just": "Increase the maximum stack size for consumable items such as potions to ninety-nine units."
+ },
+ "dmg-immunity-display": {
+  "key": "d8291c780c0c5e4f",
+  "just": "Fix display of damage immunity percentages after NWSync and CEP2 HAK updates"
+ },
+ "gloin-amulet": {
+  "key": "12b4ecd1a383936a",
+  "just": "Correct the discrepancy between the documented and actual immunity values for the character Gloin's amulet item."
+ },
+ "reboot-loot-inaccessible": {
+  "key": "07d58bc89ceef258",
+  "just": "Fix donation chest reward pool to exclude inaccessible boss items."
+ },
+ "orb-vfx-warning": {
+  "key": "58fe415118fba845",
+  "just": "Teleport destination alignment visual effects and faction reputation synchronization upon departure."
+ },
+ "mw-counterspell": {
+  "key": "69bd9792ba00a0fc",
+  "just": "Meaningwave companion system requires balancing for aegis rings, scaling unlocks, and battlefield cure mechanics."
+ },
+ "ab-enhance-stack-bug": {
+  "key": "b01478c13ace2575",
+  "just": "Fix weapon stat calculation errors caused by overlapping attack and enhancement bonuses"
+ },
+ "ll-leveler-tumble": {
+  "key": "503a112e9deca1e1",
+  "just": "Legendary leveler prevents selecting skills from non-dominant classes despite having them in minor classes."
+ },
+ "legendary-forge-4th": {
+  "key": "63612e91d8e4aff1",
+  "just": "Add a fourth forge slot for magical positive and negative damage components"
+ },
+ "cnr-crafting": {
+  "key": "d057a6325749e63f",
+  "just": "Allow gathering activities to provide high quality equipment without requiring boss encounters."
+ },
+ "high-end-mat-crafting": {
+  "key": "c8070996ba7aaa29",
+  "just": "Enable crafting of high-level equipment with maximum enhancement bonuses using globally sourced materials."
+ },
+ "plot-flag-craft": {
+  "key": "7874f7b193a6a31b",
+  "just": "Allow crafting of specific plot items in the smithing skill menu."
+ },
+ "discipline-forge-craft": {
+  "key": "a9ab351f0a0db6df",
+  "just": "Add missing skill checks to the Rivendell forge crafting interface."
+ },
+ "sneak-attack-shadowdmg": {
+  "key": "3704394ee2b1a812",
+  "just": "Implement a new shadow damage type for sneak attack bonus damage."
+ },
+ "devcrit-roll": {
+  "key": "66a1e84fe693ebfb",
+  "just": "Modify devastating critical mechanic to apply bonus damage instead of instant death"
+ },
+ "relevel-option": {
+  "key": "f6479791990cbd65",
+  "just": "Allow players to reset character level to adjust progression without exploiting game mechanics."
+ },
+ "ll-modern-leveling": {
+  "key": "ee4825ad3bc3601a",
+  "just": "Replace the conversation-based legendary leveler with standard one to forty leveling mechanics for multiclass characters."
+ },
+ "delevel-mcgondy": {
+  "key": "72e5120203d79a61",
+  "just": "Allow players to voluntarily reduce their character level without exploiting game mechanics."
+ },
+ "summons-boost": {
+  "key": "65d8eb292a0dddd3",
+  "just": "Implement level-based scaling for druid summons and animal companions to maintain late-game relevance."
+ },
+ "dd-defensive-stance": {
+  "key": "7d88b63c8c10488d",
+  "just": "Allow defensive stance companions to move freely without breaking their defensive formation state."
+ },
+ "remove-class-restrictions": {
+  "key": "2a1dd0997faceaa6",
+  "just": "Remove class restrictions to allow any character to equip any item type."
+ },
+ "dr-stacks": {
+  "key": "4c7a3d2168650e78",
+  "just": "Allow character class and feat based damage reduction to stack with equipment damage reduction values."
+ },
+ "class-specific-gear": {
+  "key": "524f1a2809a31377",
+  "just": "Add class specific signature weapons to the appropriate character classes."
+ },
+ "balrog-not-healing": {
+  "key": "31e955bb17836254",
+  "just": "Add healing spells or potions to the Balrog creature."
+ },
+ "sauron-minion-faction": {
+  "key": "746399021763fb1f",
+  "just": "The enemy minion character incorrectly attacks allied faction members due to a faction assignment error."
+ },
+ "monk-weapons": {
+  "key": "83d8d7e2c7216107",
+  "just": "Allow monks to use shurikens, katanas, and quarterstaves as finesse monk weapons"
+ },
+ "theoden-chosen-ac": {
+  "key": "25ecad45acf44607",
+  "just": "Theoden's Chosen companion has higher armor class than documented in the wiki."
+ },
+ "rancid-skinner-bark": {
+  "key": "ce445a4a7451bea8",
+  "just": "Update the death announcement text for the Rancid Skinner boss character to reflect current lore."
+ },
+ "remove-crit-immunity": {
+  "key": "d0755b56a1d21b0c",
+  "just": "Modify boss combat mechanics by removing critical hit immunity and adjusting developer critical effects."
+ },
+ "boss-tuning-post40": {
+  "key": "86202ba4c5608b20",
+  "just": "Update the forge system to increase starter boss difficulty for level forty progression."
+ },
+ "true-damage-type": {
+  "key": "eb020d41c0c2fa1d",
+  "just": "Introduce a universal true damage type that bypasses all boss immunities and remains compatible with the crafting system."
+ },
+ "boss-stat-tuning-pass": {
+  "key": "e27047ec14c2e6c3",
+  "just": "Adjust boss difficulty by modifying saving throws and armor class values to increase challenge."
+ },
+ "boss-enrage-on-retreat": {
+  "key": "74c8c131cfc54eca",
+  "just": "Registry bosses gain stats and heal when players disengage from combat."
+ },
+ "heal-soul-fatigue": {
+  "key": "37995c4d5c6fdbdb",
+  "just": "Implement fatigue mechanic for healing spells and potions to prevent spamming."
+ },
+ "heal-soul-fatigue-rebalance": {
+  "key": "6d5a6e09bee6a975",
+  "just": "Adjust soul fatigue mechanics to reduce stack cost and allow persistence across death and logout events"
+ },
+ "encounter-density-reused-mobs": {
+  "key": "2634407c82503e4d",
+  "just": "Increase spawn counts for shared creatures in multiple encounters to two per instance."
+ },
+ "wandering-adaptive-boss": {
+  "key": "86b140935be4c7e8",
+  "just": "Implement adaptive immunity mechanic for roaming boss to discourage mono-damage strategies"
+ },
+ "forbidden-realms-key-tier": {
+  "key": "e851e092b8e60fdc",
+  "just": "Enable the journal quest to open the Tombs of the Lost Souls via the Forbidden Realms Key."
+ },
+ "elemental-swarm-waves": {
+  "key": "1a613c220f877b8f",
+  "just": "Implement a boss arena with rotating elemental waves requiring mid-fight tactical adjustments"
+ },
+ "clone-parent-boss": {
+  "key": "98c1921703e2a4e1",
+  "just": "Add random boss reinforcements with enhanced stats to increase combat difficulty and strategic complexity."
+ },
+ "tier-areas-moria-nazgul": {
+  "key": "3da1be3f3c28cf1e",
+  "just": "Enable teleport access to the Moria Deep Caverns and Temple of Nazg\u00fbl endgame areas."
+ },
+ "optin-curse-gem-loot": {
+  "key": "f6ddf25543092bf8",
+  "just": "Implement optional difficulty curse to increase gem drop rarity in exchange for higher damage taken and soul fatigue."
+ },
+ "boss-ability-ac-bump": {
+  "key": "d26004505f7d38e4",
+  "just": "Increase endgame creature difficulty to match player power scaling"
+ },
+ "achievements": {
+  "key": "91e58764b4628176",
+  "just": "Implement a boss kill tracking system with tiered rewards based on frequency."
+ },
+ "boss-monk-sr-levels": {
+  "key": "32277e8edb70f35b",
+  "just": "Increase monk levels on endgame NPCs to maintain spell resistance against high level casters."
+ },
+ "long-term-currency": {
+  "key": "17ca6e66009fae6b",
+  "just": "Implement a long-term reward currency system redeemable for gold, experience points, and special items."
+ },
+ "item-slot-tokens": {
+  "key": "88220cc57437a313",
+  "just": "Allow players to permanently expand item property slots using rare boss drop tokens or consumable runes."
+ },
+ "teleport-expansion": {
+  "key": "903ea84838d32727",
+  "just": "Allow players to unlock additional teleport destinations through quest completion and boss encounters."
+ },
+ "forge-limits-progressive": {
+  "key": "3d3c90b553317e04",
+  "just": "Allow players to increase forge limits by defeating bosses to earn gear advantages."
+ },
+ "xp-bank-penalty-warn": {
+  "key": "775017cf31b2946d",
+  "just": "Banker must warn players about multiclass experience point penalties before processing withdrawals."
+ },
+ "teleport-last-eru": {
+  "key": "2c30374d278c4206",
+  "just": "Allow players to teleport back to their previous location using the rest menu interface."
+ },
+ "wiki-top-killers": {
+  "key": "e41d9f2dcc551f06",
+  "just": "Display top killer leaderboard on creature pages showing character names and kill counts."
+ },
+ "wiki-kill-counts": {
+  "key": "d4ca31073c987ecc",
+  "just": "Display individual character kill statistics and death totals on creature profile pages for accurate performance tracking."
+ },
+ "wiki-chest-stats": {
+  "key": "6dc9d20eb58dc2dc",
+  "just": "Track individual player contributions to the community chest by counting added versus removed items."
+ },
+ "discord-bot": {
+  "key": "5210a7e0a6f1523e",
+  "just": "Allow external tools to query player character statistics and activity metrics for community reporting purposes."
+ },
+ "item-rename": {
+  "key": "6c4f8d14801a38b3",
+  "just": "Allow players to rename their equipped weapons using a dedicated customization feature."
+ },
+ "item-morph-type": {
+  "key": "bf0d8188bf01f5e6",
+  "just": "Allow modifying an item type while preserving its existing properties and stats."
+ },
+ "dedupe-item-tags": {
+  "key": "7f8c4b743c4ec055",
+  "just": "Fix duplicate item tags to resolve lookup errors and prevent false jailing in the legality whitelist."
+ },
+ "party-loot-roll": {
+  "key": "acf59fbb8905a0b1",
+  "just": "Allow players to configure party loot roll settings via the rest menu interface."
+ },
+ "mail-delivery": {
+  "key": "3978aed6fe47cc3c",
+  "just": "Implement a mail system allowing players to send items to specific characters based on weight with post-login notifications."
+ },
+ "npc-disarm-despawn": {
+  "key": "0eb0a5068aa1f518",
+  "just": "Fix NPC disarm logic to return weapons to player inventory rather than despawning them on the ground."
+ },
+ "glorfind-potion-quest": {
+  "key": "d5c3ad5ab8d669cc",
+  "just": "Fix missing journal entries and implement respawn timer for Athelas plants in Glorfindel's potion quest."
+ },
+ "gwathdor-stuck": {
+  "key": "05e30973c9d91af8",
+  "just": "Improve collision detection in Gwathdor West Deeps to prevent players from getting stuck in walls."
+ },
+ "moria-door": {
+  "key": "42399aaf310f2cd9",
+  "just": "Fix Moria gate password synchronization to allow immediate re-entry after closure without requiring a server reset."
+ },
+ "true-seeing-spot": {
+  "key": "db93eff7f39f4224",
+  "just": "Modify True Seeing spell to provide a Spot bonus rather than automatically bypassing Hide checks."
+ },
+ "mw-appearance": {
+  "key": "16489b5efd8ffcd8",
+  "just": "Fix visual glitches where companion characters spawn without their intended armor sets."
+ },
+ "merit-redemption-poc": {
+  "key": "42154a567d006735",
+  "just": "Unlock teleportation and housing features upon redeeming merit points at the inn."
+ },
+ "nerf-yazkir": {
+  "key": "97f8058935519ed4",
+  "just": "Reduce the combat effectiveness of the Yazkir companion to prevent multiboxing exploitation."
+ },
+ "merit-premium-boosts": {
+  "key": "4902000c3523b818",
+  "just": "Implement temporary double gold and experience boosts for merit redemptions affecting personal or server wide progress."
+ },
+ "guilds-journal-never-delivered": {
+  "key": "87b1ce84adec8d9d",
+  "just": "Guild system journal delivery is currently disabled because the feature has been retired."
+ },
+ "quest-cooldown-lib": {
+  "key": "77c41bad176d2fa9",
+  "just": "Implement persistent per-character quest cooldown tracking for daily and weekly repeatable activities."
+ },
+ "p000-duplicate-ferny-journal": {
+  "key": "4c7e294071bf663f",
+  "just": "Remove duplicate legacy placeholder quest interfering with Bill Ferny journal progression in Bree region."
+ },
+ "faction-scaffolding": {
+  "key": "7254f32d57919bf4",
+  "just": "Persist faction allegiance per character and enable quests to modify reputation scores."
+ },
+ "prestige-trainer-hub": {
+  "key": "9dc4d6775da1351d",
+  "just": "Relocate the prestige class quest trainer to a generic hub location near the main teleport destination."
+ },
+ "faction-rally-rescue": {
+  "key": "6ca29410067dec08",
+  "just": "Implement pre-death faction rally alerts and timed rescue quests for landmark defenders."
+ },
+ "pvp-faction-points": {
+  "key": "46e38d763fa89cf1",
+  "just": "Award faction points for player kills during active landmark defense rallies."
+ },
+ "world-state-tick-logic": {
+  "key": "65f7893f4489e963",
+  "just": "Implement scheduled daily and weekly server resets for dynamic living world state changes."
+ },
+ "frogmorton-last-drop": {
+  "key": "7d7fd4d785fca2ad",
+  "just": "Implement daily social quest with rotating answer choices and cooldown system"
+ },
+ "capstone-item-encoding-ref": {
+  "key": "adf367f9d6743ce1",
+  "just": "Create reference mapping non-stock item properties to spellscript substitutes for quest capstone development."
+ },
+ "ferny-return": {
+  "key": "3d2f2abd0abaf44f",
+  "just": "Add new level three quest in Bree involving Bill Ferny and Sharkey's ruffians"
+ },
+ "miller-other-son": {
+  "key": "4af1ebbd2e7d815f",
+  "just": "Add new level eight quest in Bree region involving cult conflict resolution at Tharbad East location."
+ },
+ "carndum-ledger": {
+  "key": "80aec1f29db367c5",
+  "just": "Weekly quest mechanic reduces enemy power through resource collection tasks"
+ },
+ "beorns-garden": {
+  "key": "c68a8c60d2b1031e",
+  "just": "Add daily quest requiring harvesting honey hives and defeating wargs in garden area"
+ },
+ "tharbad-bridge-watcher": {
+  "key": "10019b2c860c6996",
+  "just": "Implement a server-locked quest choice mechanic for the twilight boss at Tharbad Bridge."
+ },
+ "twentieth-plot-mazarbul": {
+  "key": "836131dff14f04b8",
+  "just": "Add a new one-off level eighteen plus quest in Moria to re-seal a forgotten crypt."
+ },
+ "faramir-watch": {
+  "key": "77b00cfe8b348946",
+  "just": "Implement weekly rotating side objectives for the Faramir companion character in Ithilien."
+ },
+ "grey-lord-annuminas": {
+  "key": "9b1c2bfc47ae78ba",
+  "just": "Add three new undead utility creatures to support the King Shade trials quest in the Ruins of Annuminas."
+ },
+ "harper-scout-quest": {
+  "key": "307715d712a0d663",
+  "just": "Quest giver Halmir should serve as a general guide instead of an order-specific keeper."
+ },
+ "empty-throne-dolguldur": {
+  "key": "6c3d50de29f994a5",
+  "just": "Implement the alignment quest branch for the Dol Guldur dungeon area and its associated shadow priest boss encounter."
+ },
+ "pale-master-quest": {
+  "key": "f52fe7fa506ff70d",
+  "just": "Quest giver Halmir should serve as a general guide instead of an order keeper."
+ },
+ "shadowdancer-quest": {
+  "key": "74492213c70222ab",
+  "just": "Prestige order quest requires redesign to remove specific location dependency and NPC role constraints."
+ },
+ "knight-westernesse-quest": {
+  "key": "b2aedaf0604ff38b",
+  "just": "Redesign the Knight of Westernesse prestige quest and update Halmir the Grey's role as a general guide."
+ },
+ "arcane-archer-quest": {
+  "key": "e5af7ae4c7e55142",
+  "just": "Redesign the Arcane Archer prestige quest and update Halmir's role as a general guide."
+ },
+ "red-dragon-disciple-quest": {
+  "key": "29ca4d892a5feac8",
+  "just": "Redesign the Red Dragon Disciple prestige quest and update Halmir's role as a general guide."
+ },
+ "assassin-quest": {
+  "key": "f5f7917c094fa960",
+  "just": "Redesign the prestige order trial quests and update the quest guide NPC role."
+ },
+ "blackguard-quest": {
+  "key": "80115fce4b21ada0",
+  "just": "Quest designer withdraws Blackguard's Fall prestige trial for comprehensive system redesign and narrative restructuring."
+ },
+ "weapon-master-quest": {
+  "key": "0ca3f4b182209791",
+  "just": "Quest system redesigns the Weapon Master prestige trial and updates Halmir the Grey's role as a general guide."
+ },
+ "dwarven-defender-quest": {
+  "key": "27cd5fbb81787e90",
+  "just": "Quest designer withdraws dwarf prestige trial to redesign companion role and location mechanics."
+ },
+ "divine-champion-quest": {
+  "key": "f951a2bdb4147a63",
+  "just": "Quest giver Halmir should serve as a general guide instead of an order specific NPC."
+ },
+ "shifter-quest": {
+  "key": "8c1e283b21e54417",
+  "just": "Quest giver Halmir should serve as a general guide instead of an order-specific keeper."
+ },
+ "palantir-watch": {
+  "key": "cf26a4bbc3586cad",
+  "just": "Implement daily escort quest requiring player to protect NPC from enemy waves at designated location."
+ },
+ "riders-of-the-mark": {
+  "key": "e75a2e1283f43d6f",
+  "just": "Implement weekly faction quest requiring investigation and defense against escalating enemy waves for armor rewards."
+ },
+ "dead-marshes-lantern": {
+  "key": "44d230bf6e936c5f",
+  "just": "Enable teleportation to the Dead Marshes area via the Elven waystone reward item."
+ },
+ "white-council-errand": {
+  "key": "b5f5f05031af379d",
+  "just": "Implement weekly faction quest retrieving map fragment with linear and branching paths"
+ },
+ "eagles-eyrie-quest": {
+  "key": "04a23bcc98d1fc8e",
+  "just": "Add faction quest area and authoring NPC for eagle faction progression"
+ },
+ "sowing-discord-bree": {
+  "key": "7947e8c9431e2f7f",
+  "just": "Add daily faction quest for evil characters to plant forged letters at inn."
+ },
+ "eagle-courier-network": {
+  "key": "c675b0715c9a6c31",
+  "just": "Implement a fast travel network for good aligned players using courier locations unlocked by the eagle eyrie quest"
+ },
+ "sarumans-voice": {
+  "key": "b192ab1058dcc5e1",
+  "just": "Implement a faction quest requiring social skills to divert resources without combat."
+ },
+ "unmaking-wards": {
+  "key": "9ecc1003c8e1199a",
+  "just": "Implement weekly faction quest requiring stealth mechanics and specific enemy NPC integration for objective completion."
+ },
+ "nine-are-abroad": {
+  "key": "88c003657bdc7b3c",
+  "just": "Faction quest requires recovering Nazgul horse iron shoes before sunrise."
+ },
+ "pass-the-pass": {
+  "key": "30523295b99a90ec",
+  "just": "Add daily escort quest to transport caravan through mountain pass"
+ },
+ "sacking-pelargir": {
+  "key": "4bddda374208b441",
+  "just": "Add missing Pelargir zone to enable weekly faction quest execution and Corsair raid mechanics."
+ },
+ "spider-silk-harvest": {
+  "key": "48d24050212bc491",
+  "just": "Add daily quest to harvest spider silk from large spiders in Mirkwood."
+ },
+ "lumber-ent-tugofwar": {
+  "key": "b0c6254977bacc92",
+  "just": "Implement Fangorn daily quests to interact with the persistent server-wide faction struggle meter."
+ },
+ "goblin-town-throne": {
+  "key": "0fc41077dd768680",
+  "just": "Implement quest mechanics for faction succession and global spawn rate modification based on world state changes."
+ },
+ "mithril-seam": {
+  "key": "5bbebe2dd779a55d",
+  "just": "Weekly server-wide race for claiming exclusive resource nodes in high-level zones"
+ },
+ "claim-the-deeps": {
+  "key": "b08d295268c57743",
+  "just": "Implement daily faction control quest gating crafting table access in Moria deeps area"
+ },
+ "thranduil-jailbreak": {
+  "key": "fac83219672b6212",
+  "just": "Weekly quest requires alignment mirrored objectives for the jailbreak activity in Mirkwood."
+ },
+ "twentyfirst-hall": {
+  "key": "8f6a4881ea5250e9",
+  "just": "Add a new level four party dungeon quest located in Moria featuring an ambush finale."
+ },
+ "thirteenth-ent": {
+  "key": "0fac25861aaa46ed",
+  "just": "Allow druids and bards to access the hidden thirteenth ent in fangorn forest"
+ },
+ "smaugs-curse": {
+  "key": "735a6706ae8f730e",
+  "just": "Player requests a quest involving tracing a dragon curse to a shrine for crafting rewards."
+ },
+ "mordor-forage": {
+  "key": "0ad15ba7c83401c3",
+  "just": "Enable weekly evil faction quest requiring gathering rare components in hazardous zones with cooldown mechanics."
+ },
+ "durins-bane-remnant": {
+  "key": "cb895bc24cdb899d",
+  "just": "Implement a weekly raid encounter for high-level players featuring a boss with global failure consequences."
+ },
+ "cracks-of-doom-finale": {
+  "key": "c2e7dd29a844d9a1",
+  "just": "Implement a six-player level fifty-eight to sixty epic quest finale involving multiple stages and companion mechanics."
+ },
+ "grey-havens-area": {
+  "key": "70636e5f1ee20fd0",
+  "just": "Add the Grey Havens area and Cirdan NPC to support upcoming quest content."
+ },
+ "harbour-watch": {
+  "key": "6d16a4671373f163",
+  "just": "Implement scaling daily quest mechanics for the Grey Havens area using world state variables."
+ },
+ "last-ships-cargo": {
+  "key": "47090e1b2c308544",
+  "just": "Fix quest progression blockage in Grey Havens area due to missing Cirdan authoring and swim mechanics."
+ },
+ "hobbit-post": {
+  "key": "772bddcd8e325377",
+  "just": "Add daily delivery quest mechanic for Shire residents involving parcel distribution and bonus rewards."
+ },
+ "riddle-game": {
+  "key": "f5d620d75076d42a",
+  "just": "Implement weekly riddle minigame against Gollum with rotating questions and fixed rewards"
+ },
+ "pipeweed-npc-reactions": {
+  "key": "0d6f97d31baaf612",
+  "just": "NPCs should react to player pipe-weed consumption during conversations."
+ },
+ "concerning-hobbits": {
+  "key": "72d692800583a221",
+  "just": "Add daily quest to resolve genealogy dispute for gold, experience, and item upgrades."
+ },
+ "pipeweed-supply-line": {
+  "key": "458a107196d0b127",
+  "just": "Fix broken supply chain mechanics for the Shire region quest line involving Odo Proudfoot."
+ },
+ "bombadils-errand": {
+  "key": "0bbce95dd437af5e",
+  "just": "Rewrite Old Forest area to support Tom Bombadil NPC and level-immune quest mechanics."
+ },
+ "smeagols-side": {
+  "key": "3cce574ca0961c76",
+  "just": "Implement narrative companion alignment system with persistent state tracking for split personality interactions."
+ },
+ "ents-dont-hasty": {
+  "key": "0e7a36efb2dee3ef",
+  "just": "Implement a seven day narrative quest with a temporary buff reward for high level players."
+ },
+ "watcher-in-water": {
+  "key": "9f5928f98e7ad315",
+  "just": "Implement sequential fishing quest mechanics requiring an aquatic clone for the Moria gate encounter."
+ },
+ "istaris-bet": {
+  "key": "705644c98de3f971",
+  "just": "Implement a solo level forty five quest requiring magic suppression during a timed traversal of the specified zone."
+ },
+ "ungoliants-hunger": {
+  "key": "bbeba62a5890829f",
+  "just": "Implement a timed mirror rotation puzzle boss encounter for the late game tier six content."
+ },
+ "long-winter-state-machine": {
+  "key": "08dd3ca3421463dd",
+  "just": "Implement server state machine for seasonal event progress tracking and experience multiplier application"
+ },
+ "long-winter-cold-auras": {
+  "key": "b48c9d4e71671bdf",
+  "just": "Implement seasonal cold aura damage mechanics for the Long Winter event in Eriador zones."
+ },
+ "long-winter-subquests": {
+  "key": "8fffbc3daefe4baf",
+  "just": "Implement seasonal gathering and forging quest chains to drive collective player progression during winter events."
+ },
+ "long-winter-forochel-boss": {
+  "key": "eb9bfac82d49d218",
+  "just": "Implement a final boss encounter for the seasonal winter event in the northern ice regions."
+ },
+ "fighter-line-early": {
+  "key": "5a866e4f89368533",
+  "just": "Rework fighter class quest line rewards and structure to reduce dependencies."
+ },
+ "fighter-line-mid": {
+  "key": "d0d3166ceb87f4e7",
+  "just": "Add mid-level nodes to the fighter skill tree progression path."
+ },
+ "fighter-line-endgame": {
+  "key": "85d39a27c2f51475",
+  "just": "Add endgame progression nodes for the fighter class character build path"
+ },
+ "wizard-line-mid": {
+  "key": "de77f4b28273a3d0",
+  "just": "Add mid level nodes for the wizard skill progression line."
+ },
+ "wizard-line-early": {
+  "key": "924d91efa0279a8f",
+  "just": "Reworking the wizard class quest line to reduce dependencies and retune rewards."
+ },
+ "wizard-line-endgame": {
+  "key": "4df07531b869b0d2",
+  "just": "Implement persistent color-based skill branching for endgame wizard progression tiers"
+ },
+ "rogue-line-early": {
+  "key": "2978e8041cb6007d",
+  "just": "Rework rogue class quest line to reduce dependencies and retune rewards."
+ },
+ "rogue-line-mid": {
+  "key": "815a6f31a9bb06da",
+  "just": "Rogue class progression requires additional mid-level skill nodes for characters between levels twenty-two and thirty-eight."
+ },
+ "druid-line-early": {
+  "key": "6a63c4b4eeb0fec5",
+  "just": "Rework Druid class quest line rewards and design to reduce dependency on other class lines."
+ },
+ "rogue-line-endgame": {
+  "key": "685fc34b75bb3a02",
+  "just": "Rogue class requires implementation of level forty six through sixty endgame nodes and associated sneak attack mechanics."
+ },
+ "druid-line-mid": {
+  "key": "0aa7472648a11413",
+  "just": "Add mid-level nodes to the Druid skill progression tree for characters levels twenty two through thirty eight."
+ },
+ "druid-line-endgame": {
+  "key": "87eb96eda8c3a313",
+  "just": "Implement endgame skill nodes for the Druid class progression tree including the final capstone ability."
+ },
+ "ranger-line-early": {
+  "key": "52d05ab30bbd6341",
+  "just": "Ranger class quest line requires individual redesign and reward retuning to reduce dependencies."
+ },
+ "ranger-line-mid": {
+  "key": "1ed41ad1841bdba1",
+  "just": "Ranger class progression requires implementation of mid-level skill nodes for the Uncrowned Path specialization."
+ },
+ "ranger-line-endgame": {
+  "key": "4f49a3c2795ae05d",
+  "just": "Ranger class progression requires implementation of endgame skill nodes and the final capstone ability."
+ },
+ "cleric-line-mid": {
+  "key": "18d71642c9ba9e19",
+  "just": "Add mid-level nodes to the Cleric skill progression path."
+ },
+ "cleric-line-early": {
+  "key": "11e30cf9217aa82b",
+  "just": "Reworking the cleric class quest line to reduce dependencies and retune rewards."
+ },
+ "cleric-line-endgame": {
+  "key": "77badd2658471c2c",
+  "just": "Cleric skill tree requires implementation of endgame nodes for levels forty six through sixty"
+ },
+ "paladin-line-mid": {
+  "key": "70433c75fffb382e",
+  "just": "Paladin class progression requires functional mount integration for mid-level oathsworn characters."
+ },
+ "paladin-line-early": {
+  "key": "65e35c6cdbfca773",
+  "just": "Redesign the paladin oathsworn to the west class quest line and its associated rewards."
+ },
+ "paladin-line-endgame": {
+  "key": "c77bc5e1af9e95c7",
+  "just": "Paladin class progression requires implementation of endgame skill nodes and their associated stat encodings."
+ },
+ "bard-line-early": {
+  "key": "32194b79d5645382",
+  "just": "Reworking Bard class quest line Tales That Live Forever to reduce dependencies and retune rewards."
+ },
+ "bard-line-endgame": {
+  "key": "965b19782688ae77",
+  "just": "Implement endgame nodes for the Bard class progression line using specific feat properties."
+ },
+ "bard-line-mid": {
+  "key": "f87d2ea54453f760",
+  "just": "Bard class progression requires implementation of mid-level talent nodes for the Tales That Live Forever skill tree."
+ },
+ "monk-line-early": {
+  "key": "37b211a48c6aad4c",
+  "just": "Rework the monk class quest line to reduce dependencies between individual character progression paths."
+ },
+ "monk-line-mid": {
+  "key": "e3e699a499e487dc",
+  "just": "Monk class progression requires additional mid-level skill nodes between levels twenty two and thirty eight."
+ },
+ "monk-line-endgame": {
+  "key": "6b446f5c4394095c",
+  "just": "Monk class progression requires implementation of endgame skill nodes and capstone ability mechanics."
+ },
+ "sorcerer-line-early": {
+  "key": "5ded474bdcf8b125",
+  "just": "Rework Sorcerer class quest line rewards and design to reduce dependencies."
+ },
+ "sorcerer-line-mid": {
+  "key": "305c5b533994d38c",
+  "just": "Sorcerer skill tree mid level nodes require implementation for levels twenty two thirty and thirty eight."
+ },
+ "ll-exptable-2da": {
+  "key": "68efc6e747df88a5",
+  "just": "Update experience requirements for character levels forty one through sixty"
+ },
+ "toolset-cost-override-wipe": {
+  "key": "fd0cd69de4703bbc",
+  "just": "Investigate toolset save corruption causing unintended loss of item blueprint cost overrides during data persistence operations."
+ },
+ "sorcerer-line-endgame": {
+  "key": "ce902b0834f62a6b",
+  "just": "Implement endgame progression nodes for the Sorcerer class character development system."
+ },
+ "ll-maxlevel-cap": {
+  "key": "a4123623097e0865",
+  "just": "Increase the maximum character level cap from forty to sixty for all players."
+ },
+ "ll-cls-progression": {
+  "key": "f8f8ee44b548faa8",
+  "just": "Implement class progression tables for character levels forty one to sixty."
+ },
+ "ll-tweaks-audit": {
+  "key": "bf78c55096c7141d",
+  "just": "Review server configuration settings to ensure stability and correct behavior for high level characters."
+ },
+ "ll-elc-validation": {
+  "key": "281885ae5a772964",
+  "just": "Server must validate character levels against current cap and enforce item restrictions on login"
+ },
+ "ll-xp-award-balance": {
+  "key": "66ae62adbf061e6b",
+  "just": "Adjust experience point rewards for player characters within the forty one to sixty level range"
+ },
+ "ll-hgll-remove-scripts": {
+  "key": "fe39379aaf5fbe25",
+  "just": "Remove obsolete legendary leveling scripts from the game server codebase."
+ },
+ "ll-hgll-retire-area": {
+  "key": "ab48b35ac5cbe8ec",
+  "just": "Remove the obsolete teleport destination for the retired legendary leveling area."
+ },
+ "ll-hgll-split-cliententer": {
+  "key": "8d44950668a7951e",
+  "just": "Refactor server login hooks to decouple legacy leveling logic from current authentication systems."
+ },
+ "ll-hgll-purge-docs": {
+  "key": "79d7011bfa1bbda3",
+  "just": "Update documentation to remove obsolete legendary leveler references"
+ },
+ "ll-hgll-retire-gate": {
+  "key": "86c9a1a94d7a85df",
+  "just": "Remove the high-level game logic build requirement from the automated smoke testing pipeline."
+ },
+ "ll-pingpong-41-60": {
+  "key": "ae9abdaa4709ce3b",
+  "just": "Add missing high level range to the player level selection menu interface"
+ },
+ "ll-feats-2da": {
+  "key": "8d84f6f19fb0d450",
+  "just": "Implement level sixty ability score selection mechanism for legendary feats"
+ },
+ "ll-feats-tlk": {
+  "key": "aa1f389bed6626cf",
+  "just": "Implement backend infrastructure to support custom localization text for Legendary Feats."
+ },
+ "ll-wiki-leveling-docs": {
+  "key": "c4d21c0f657773ea",
+  "just": "Update the leveling guide documentation to accurately reflect mechanics for character levels forty one through sixty."
+ },
+ "ll-feats-picker": {
+  "key": "42a4f50b4ad89566",
+  "just": "Level sixty characters select additional legendary feats from a dedicated interface after standard selection."
+ },
+ "ll-feats-ability-martial": {
+  "key": "e4682380cd9b8ec7",
+  "just": "Implement ability score and martial legendary feats for character progression."
+ },
+ "ll-feats-defense": {
+  "key": "0dbd3e4082d6446d",
+  "just": "Implement defensive and survival legendary feats for character progression and combat resilience."
+ },
+ "ll-feats-arcane-divine": {
+  "key": "5eb9de495cc22b73",
+  "just": "Implement legendary feats for arcane and divine spellcasting character classes."
+ },
+ "ll-feats-ki-perform-skill": {
+  "key": "0d8404346cd18a9a",
+  "just": "Add legendary feats for ki mystic performance support and skills utility subclasses."
+ },
+ "ll-feats-dominion": {
+  "key": "b3200592bd008960",
+  "just": "Implement legendary tier variants for arcane, divine, and primal dominion feat categories."
+ },
+ "ll-feats-spell-upgrades": {
+  "key": "7af0b27df45fd261",
+  "just": "Add legendary spell upgrade feats for summoning, damage, control, buffs, and schools."
+ },
+ "ll-feats-hybrid-pure": {
+  "key": "26f1fba7d46d8ce1",
+  "just": "Implement hybrid caster feats and pure class bonuses for paladins, bards, and rangers."
+ },
+ "ll-feats-exotic": {
+  "key": "7b444730d7f58440",
+  "just": "Add exotic legendary feats to the character progression system for diverse build options."
+ },
+ "spell-ab-prowess-stack": {
+  "key": "d1d660cfd7422b5a",
+  "just": "Fix spell attack bonuses stacking correctly with Legendary Prowess feat effects"
+ },
+ "bard-legendary-prowess-conflict": {
+  "key": "5435a7614f9047f7",
+  "just": "Fix Bard Song attack bonus stacking with Legendary Prowess and related legendary abilities"
+ },
+ "halmir-quest-guide": {
+  "key": "9bfad2de7d8e15ab",
+  "just": "Quest guide NPC provides level appropriate quest recommendations and locations for players."
+ },
+ "bard-song-consumes-2-uses": {
+  "key": "0fc422a58a4b24a0",
+  "just": "Bard song ability incorrectly consumed two daily uses per activation instead of one."
+ },
+ "gondor-scribe-findability": {
+  "key": "2f6397be75f7c41b",
+  "just": "Fix Gondor Scribe model and location in High Wizard tower quest"
+ },
+ "devcrit-unarmed-save-or-die": {
+  "key": "6046b32d6f6ba536",
+  "just": "Fix unarmed and creature attacks to apply bonus damage instead of instant death from Devastating Critical."
+ },
+ "store-blueprint-audit": {
+  "key": "0e02443bcdcb81f6",
+  "just": "Fix orphaned store blueprints and unlinked merchant scripts to resolve store audit issues."
+ },
+ "ambiguous-transition-tags": {
+  "key": "1889445c764b33c0",
+  "just": "Fix ambiguous teleport destinations in Dol Guldur and add missing map pins for Gwathdor area transitions."
+ },
+ "encounter-empty-spawn-points": {
+  "key": "4fa49608b050d291",
+  "just": "Fix empty spawn point lists in encounters to prevent invalid monster placement."
+ },
+ "bulk-fix-creatures-that-dont-respawn": {
+  "key": "ad608f3dbafc378b",
+  "just": "Fix respawn timers and implement standard experience point rewards for affected creatures across multiple zones."
+ },
+ "soul-fatigue-not-working-while-shapeshifted": {
+  "key": "679761dfd215cbff",
+  "just": "Fix soul fatigue application to function correctly while the character is in a shapeshifted form"
+ },
+ "wiki-exclude-admins-from-kill-rankings": {
+  "key": "a6a45ff38b3d86eb",
+  "just": "Exclude administrative characters from top killer and server first rankings for data consistency."
+ },
+ "horn-of-the-fell-beast-unfindable": {
+  "key": "8fc54436f8e93ab9",
+  "just": "Fix invisible Horn of the Fell Beast item display in inventory and enable direct usage from pack."
+ },
+ "per-character-playtime": {
+  "key": "80a448fa8446fc3c",
+  "just": "Implement character-level playtime tracking to replace inaccurate account-wide statistics in the database."
+ },
+ "shelob-upgrades": {
+  "key": "00093405e22c0166",
+  "just": "Increase difficulty and relocate Shelob spawn location to Cirith Ungal area."
+ },
+ "admin-merit-tier": {
+  "key": "430392049ad644f4",
+  "just": "Implement a dedicated administrative tier granting access to exclusive menu features without requiring merit currency accumulation."
+ },
+ "boss-player-kill-stats": {
+  "key": "4d15e04e5402feea",
+  "just": "Display boss versus player kill counts in the bestiary interface for player visibility."
+ },
+ "perf-observability": {
+  "key": "6dc62254f8dec0fa",
+  "just": "Add in-game server performance monitoring tool for administrators to observe resource usage."
+ },
+ "perf-ai-list-amplifier": {
+  "key": "259d7e953689f5f2",
+  "just": "Optimize the artificial intelligence update list to reduce server processing overhead per player."
+ },
+ "perf-nw-c2-default1-noop": {
+  "key": "b5477895826b6a24",
+  "just": "Creature heartbeat performs unnecessary fake casts on nonexistent tags wasting processing power."
+ },
+ "s2-enrage-on-player-death": {
+  "key": "5674563626da9bdd",
+  "just": "Bosses should not permanently increase difficulty when players die during combat encounters."
+ },
+ "perf-cleartrash-no-pc-guard": {
+  "key": "0bb96acad9eedb72",
+  "just": "Optimize area cleanup logic to trigger only on player movement rather than every NPC action."
+ },
+ "graffiti-easel-well-of-eru": {
+  "key": "93e541ae745baa18",
+  "just": "Allow players to customize graffiti placement options at the easel interface within the Well of Eru."
+ },
+ "graffiti-easel-tuning": {
+  "key": "8fe7b296c48bf190",
+  "just": "Improve graffiti easel usability with readable text, proper plinth visuals, step-through browsing, and a return navigation option."
+ }
+}

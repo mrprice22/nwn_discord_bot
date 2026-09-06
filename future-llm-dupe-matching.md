@@ -65,6 +65,92 @@ design for it.
 
 ---
 
+## Experiment run 2026-09-05: justifications + pure token matching
+
+Run against the live box (`Qwen3.6-35B-A3B-Q4_K_M`, llama.cpp, OpenAI `/v1`). All 409 ideas
+restated in ~20 min at 6 concurrent requests, zero errors. **`enable_thinking: false` is
+required** — it is a reasoning model and otherwise spends the whole token budget in
+`reasoning_content` and returns empty `content`.
+
+The prompt asked for one 12–20 word line using the most generic term for each thing (say
+"teleport destination", not "Well-of-Eru"; "companion", not "henchman"), naming subsystem, actor
+and what is wanted — the underlying need, not the phrasing.
+
+### Result 1: justifications rank dramatically better
+
+Token matching over the restatements instead of over title + notes, same metric as before —
+rank of the true canonical among all 404 candidates:
+
+| pair | raw | justification |
+|---|---|---|
+| `high-end-mat-crafting` → `cnr-crafting` | **#88** | **#1** |
+| `delevel-mcgondy` → `relevel-option` | #1 | #1 |
+| `wiki-top-killers` → `wiki-kill-counts` | #1 | #1 |
+| `teleport-last-eru` → `teleport-expansion` | #4 | #4 |
+| `forge-limits-progressive` → `achievements` | #19 | #358 |
+
+**Top-1 goes 2/5 → 3/5, top-5 goes 3/5 → 4/5**, and the single hardest paraphrase — the one
+lexical matching put at #88 — comes first. That is the technique working exactly as designed.
+
+The one regression is instructive rather than alarming: the LLM restated `forge-limits-progressive`
+as "increase forge capacity limits by defeating boss enemies" and `achievements` as "boss kill
+tracking system with tiered rewards", which are genuinely different features. Normalization
+removed a surface link that was carrying that pair.
+
+### Result 2: it is still not thresholdable on its own
+
+Absolute scores compress, because every restatement is written in the same register. At the
+point where all three hits fire (≥0.20), **81%** of non-duplicate ideas also fire. Confidence
+measures do not rescue it — top-1 minus top-2 margin, and top-1 ÷ top-2 ratio, both tested:
+
+| operating point | real duplicates found | false positives |
+|---|---|---|
+| score ≥ 0.20 | 3/5 | 81% |
+| score ≥ 0.50 | 0/5 | 9% |
+| margin ≥ 0.12 | 1/5 | 6% |
+| ratio ≥ 2.0 | 1/5 | 1% |
+
+Only the easiest pair is confidently separable. **Justifications fix recall, not precision** —
+which is precisely why the design below puts them in the *shortlist* stage and a judge after
+them, rather than using them as the decision.
+
+### Result 3: the two-stage pipeline, measured
+
+Shortlist top-5 by justification token match, then ask the model to judge the shortlist, strict,
+"when unsure answer NONE". Over the 5 known pairs and 40 random non-duplicates:
+
+**Recall 2/5. Flagged 4/40 (10%) of the non-duplicates.**
+
+Both numbers need reading carefully, and both readings point the same way:
+
+* **The "false positives" are not obviously false.** They include
+  `forge-warden-revert-all-instruction-cap` ↔ `forge-warden-script-overflow-isssue` (both
+  Forge Warden script errors), `Hobbit-Subrace` ↔ `shayan-subrace-revivial`, and
+  `grey-havens-area` ↔ `last-ships-cargo`. Treating every unmerged pair as a negative assumes
+  the roadmap contains no unmerged duplicates — which is the assumption this whole feature
+  exists to disprove. The 10% is an upper bound and some of it is real finds.
+* **The "misses" have defensible reasoning.** The judge rejected
+  `teleport-last-eru` ↔ `teleport-expansion` because one asks to return to a previous location
+  and the other to unlock more destinations; and `wiki-top-killers` ↔ `wiki-kill-counts` because
+  one is a leaderboard and the other per-character counts. A strict reader would agree.
+
+### What this actually establishes
+
+The five `dupe_of` rows are **too few and too soft to tune against**. They encode the admin's
+judgement about what is worth merging, which is broader than "the same underlying issue", and a
+strict judge will not reproduce it — nor should it be tuned until it does.
+
+So the honest next step is not more threshold work. It is to **run the judge across the whole
+roadmap once and have the admin adjudicate the output.** That does two things at once: it
+surfaces the unmerged duplicates that are apparently already in there, and it produces a real
+labelled set — a few dozen adjudicated pairs instead of five — which is the thing every number
+above is actually missing.
+
+Reproduction scripts (throwaway, not part of the package): `gen_just.py`, `evaluate.py`,
+`margin.py`, `judge.py`, plus the cached `justifications.json`, in this session's scratchpad.
+
+---
+
 ## The problem it solves
 
 Token overlap is good at one thing and blind to another.
