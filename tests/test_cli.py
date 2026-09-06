@@ -555,8 +555,12 @@ def test_nothing_in_the_repo_hard_codes_a_credential():
         assert "127.0.0.1:8765" not in text or path.name == "config.py", path.name
 
 
-def test_commands_are_the_five_the_backlog_names():
-    assert cli.COMMANDS == ("doctor", "plan", "apply", "backfill", "serve")
+def test_commands_are_the_ones_the_backlog_names():
+    # Five from [b7-cli-runtime]; `review` and `dupes` added by [b9-dupes],
+    # which needs a way to reject a duplicate suggestion and a way to pick the
+    # two thresholds from data rather than from [r6]'s proposal.
+    assert cli.COMMANDS == ("doctor", "plan", "apply", "backfill", "serve",
+                            "review", "dupes")
     parser = cli.build_parser()
     for command in cli.COMMANDS:
         assert parser.parse_args([command]).command == command
@@ -686,3 +690,101 @@ def test_the_offline_engine_does_not_validate_against_fakes():
     engine = botmod.SyncEngine(botmod.StaticSource(w.roadmap, drifted), w.context,
                                store=w.view, dry_run=True)
     assert asyncio.run(engine.cycle(reason="test")) is not None
+
+
+# --------------------------------------------------------------------------
+# review — the queue, and the rejection [b9-dupes]
+# --------------------------------------------------------------------------
+def test_review_on_a_missing_database_says_so_and_does_not_create_one(tmp_path):
+    db = tmp_path / "state.db"
+    out = Out()
+    assert cli.main(["review", "--db", str(db)], env=FAKE_ENV, out=out) == cli.EXIT_OK
+    assert "nothing has been planned yet" in out.text
+    assert not db.exists()
+
+
+def test_review_lists_open_entries_and_resolving_one_is_permanent(tmp_path):
+    db = tmp_path / "state.db"
+    with Store(str(db)) as store:
+        store.queue_review("possible_dupe:t-1:idea-a", "possible_dupe",
+                           subject="t-1", detail="scores 0.71 against idea-a")
+        store.queue_review("unknown_author:u-9", "unknown_author", subject="u-9")
+
+    out = Out()
+    assert cli.main(["review", "--db", str(db)], env=FAKE_ENV, out=out) == cli.EXIT_OK
+    assert "possible_dupe:t-1:idea-a" in out.text and "unknown_author:u-9" in out.text
+
+    out = Out()
+    assert cli.main(["review", "--db", str(db), "--resolve",
+                     "possible_dupe:t-1:idea-a"], env=FAKE_ENV, out=out) == cli.EXIT_OK
+    assert "resolved possible_dupe:t-1:idea-a" in out.text
+
+    # Gone from the open list...
+    out = Out()
+    cli.main(["review", "--db", str(db)], env=FAKE_ENV, out=out)
+    assert "possible_dupe" not in out.text
+    # ...but still known, which is what makes the rejection stick: the planner
+    # reads reviews of every status, so a resolved entry is never re-raised.
+    with Store(str(db)) as store:
+        assert "possible_dupe:t-1:idea-a" in store.review_keys(None)
+        assert "possible_dupe:t-1:idea-a" not in store.review_keys("open")
+
+
+def test_review_refuses_a_key_it_does_not_know(tmp_path):
+    """A typo must not report success and leave the entry coming back."""
+    db = tmp_path / "state.db"
+    with Store(str(db)) as store:
+        store.queue_review("possible_dupe:t-1:idea-a", "possible_dupe", subject="t-1")
+    out = Out()
+    code = cli.main(["review", "--db", str(db), "--resolve", "typo:nope"],
+                    env=FAKE_ENV, out=out)
+    assert code == cli.EXIT_FAIL
+    assert "no review entry" in out.text
+    with Store(str(db)) as store:
+        assert store.review_keys("open") == frozenset({"possible_dupe:t-1:idea-a"})
+
+
+# --------------------------------------------------------------------------
+# dupes --calibrate
+# --------------------------------------------------------------------------
+def test_calibrate_ranks_pairs_and_writes_nothing(tmp_path, monkeypatch):
+    work = tmp_path / "work"
+    work.mkdir()
+    monkeypatch.chdir(work)
+    before = fingerprint(work)
+    out = Out()
+    code = cli.main(["dupes", "--calibrate", "--fixture", str(FIXTURE),
+                     "--floor", "0.0", "--top", "5"], env=FAKE_ENV, out=out)
+    assert code == cli.EXIT_OK
+    assert "scoring" in out.text and "pairs" in out.text
+    assert fingerprint(work) == before, "calibrate must not write anything"
+
+
+def test_calibrate_reports_the_gate_and_points_at_the_review_item():
+    out = Out()
+    cli.main(["dupes", "--calibrate", "--fixture", str(FIXTURE)],
+             env=FAKE_ENV, out=out)
+    assert "[r15]" in out.text and "DUPE_POST_IN_THREAD" in out.text
+
+
+def test_dupes_without_calibrate_does_nothing():
+    out = Out()
+    assert cli.main(["dupes", "--fixture", str(FIXTURE)],
+                    env=FAKE_ENV, out=out) == cli.EXIT_OK
+    assert "nothing to do" in out.text
+
+
+def test_doctor_fails_on_an_inverted_duplicate_band():
+    """An empty or inverted band silently changes every new thread's outcome."""
+    out = Out()
+    env = dict(FAKE_ENV, NWNBOT_DUPE_LOW="0.9", NWNBOT_DUPE_HIGH="0.5")
+    code = cli.main(["doctor", "--fixture", str(FIXTURE)], env=env, out=out)
+    assert code == cli.EXIT_FAIL
+    assert "dupes" in out.text and "low < high" in out.text
+
+
+def test_doctor_reports_the_duplicate_policy():
+    out = Out()
+    cli.main(["doctor", "--fixture", str(FIXTURE)], env=FAKE_ENV, out=out)
+    assert "never writes dupe_of" in out.text
+

@@ -38,11 +38,12 @@ import asyncio
 import json
 import os
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 from nwnbot import config as cfg
+from nwnbot import dupes
 from nwnbot.bot import (
     RECONCILE_INTERVAL_SECONDS,
     RunReport,
@@ -54,7 +55,7 @@ from nwnbot.roadmap import RoadmapError, Snapshot
 from nwnbot.store import Store, StoreView, content_hash
 from nwnbot.sync import DEFAULT_ACTION_CAP, CreateThread, PlanContext
 
-COMMANDS = ("doctor", "plan", "apply", "backfill", "serve")
+COMMANDS = ("doctor", "plan", "apply", "backfill", "serve", "review", "dupes")
 
 EXIT_OK = 0
 EXIT_FAIL = 1
@@ -151,7 +152,17 @@ def load_fixture(path: str | Path) -> World:
         bot_user_id=str(ctx_raw.get("bot_user_id") or forum.bot_user_id or ""),
         action_cap=int(ctx_raw.get("action_cap", DEFAULT_ACTION_CAP)),
         editor_url=ctx_raw.get("editor_url") or "",
-        thread_url_template=ctx_raw.get("thread_url_template") or "")
+        thread_url_template=ctx_raw.get("thread_url_template") or "",
+        # [b9-dupes]. Absent from a fixture, these stay 0.0 and the scorer never
+        # runs, so every fixture written before b9 plans exactly what it did.
+        dupe_low=float(ctx_raw.get("dupe_low", 0.0)),
+        dupe_high=float(ctx_raw.get("dupe_high", 0.0)),
+        dupe_title_weight=float(ctx_raw.get("dupe_title_weight",
+                                            cfg.DUPE_TITLE_WEIGHT)),
+        dupe_notes_max=int(ctx_raw.get("dupe_notes_max", cfg.DUPE_NOTES_MAX_CHARS)),
+        dupe_candidates=int(ctx_raw.get("dupe_candidates", cfg.DUPE_CANDIDATE_LIMIT)),
+        dupe_post_in_thread=bool(ctx_raw.get("dupe_post_in_thread",
+                                             cfg.DUPE_POST_IN_THREAD)))
     store_raw = raw.get("store") or {}
     view = StoreView(
         links={str(k): str(v) for k, v in (store_raw.get("links") or {}).items()},
@@ -247,6 +258,18 @@ def check_env(env: Mapping[str, str]) -> list[Check]:
     checks.append(Check("dry-run", "ok" if dry != "0" else "warn",
                         f"{cfg.ENV_NWNBOT_DRY_RUN}={dry}"
                         + ("" if dry != "0" else " — writes are ARMED")))
+    # [b9-dupes]. A band that is empty or inverted silently changes which of the
+    # three outcomes every new thread gets, so it must not pass a health check.
+    try:
+        settings = cfg.Settings.from_env(env)
+    except cfg.ConfigError as exc:
+        checks.append(Check("dupes", "fail", str(exc)))
+    else:
+        gate = "on" if cfg.DUPE_POST_IN_THREAD else "off"
+        checks.append(Check("dupes", "ok",
+                            f"low={settings.dupe_low} high={settings.dupe_high}, "
+                            f"posting in threads is {gate}; the bot never writes "
+                            f"dupe_of ([r6])"))
     return checks
 
 
@@ -406,11 +429,10 @@ def engine_for_world(world: World, *, store: Any = None,
                      forum_writer: Any = None, cap: int | None = None) -> SyncEngine:
     context = world.context
     if cap is not None:
-        context = PlanContext(
-            tag_groups=context.tag_groups, channel_types=context.channel_types,
-            players=context.players, bot_user_id=context.bot_user_id,
-            action_cap=cap, editor_url=context.editor_url,
-            thread_url_template=context.thread_url_template)
+        # `replace`, not a field-by-field rebuild: the rebuild silently dropped
+        # every field added to PlanContext after it was written, which is how
+        # [b9-dupes]'s thresholds would have arrived at the planner as zero.
+        context = replace(context, action_cap=cap)
     return SyncEngine(
         StaticSource(world.roadmap, world.forum), context,
         store=store if store is not None else world.view,
@@ -430,6 +452,115 @@ def print_report(report: RunReport, out: Any, *, show_actions: bool = True) -> N
     print("", file=out)
     for line in report.summary():
         print(line, file=out)
+
+
+# --------------------------------------------------------------------------
+# review — read the queue, and resolve an entry
+#
+# The review queue is where every judgement call the bot refuses to make ends
+# up, and until now nothing could read it outside a `plan` summary. It matters
+# most for [b9-dupes]: **resolving a `possible_dupe` entry is how you reject a
+# duplicate suggestion.** `Store.view()` loads reviews of every status, so
+# `_review` never re-raises one that has been resolved — the rejection is
+# permanent and needs no separate "no" to be recorded anywhere.
+# --------------------------------------------------------------------------
+def cmd_review(args: argparse.Namespace, env: Mapping[str, str], out: Any) -> int:
+    path = args.db or env.get(cfg.ENV_NWNBOT_DB) or cfg.DEFAULT_DB_PATH
+    if not Path(path).exists():
+        print(f"no state database at {path}: nothing has been planned yet.", file=out)
+        return EXIT_OK
+    with Store(path) as store:
+        if args.resolve:
+            known = {e.key for e in store.reviews(None)}
+            missing = [k for k in args.resolve if k not in known]
+            if missing:
+                # Refuse the whole batch: a typo'd key would otherwise be
+                # reported as resolved and the entry would keep coming back.
+                for key in missing:
+                    print(f"no review entry with key {key!r}", file=out)
+                return EXIT_FAIL
+            for key in args.resolve:
+                store.resolve_review(key)
+                print(f"resolved {key}", file=out)
+            return EXIT_OK
+
+        entries = store.reviews(None if args.all else "open")
+        if not entries:
+            print("no open review entries." if not args.all
+                  else "the review queue is empty.", file=out)
+            return EXIT_OK
+        for entry in entries:
+            mark = " " if entry.status == "open" else "x"
+            print(f"[{mark}] {entry.kind}  {entry.key}", file=out)
+            if entry.detail:
+                print(f"      {entry.detail}", file=out)
+        print(f"\n{len(entries)} entr(ies). "
+              f"Resolve one with: python -m nwnbot review --resolve <key>", file=out)
+    return EXIT_OK
+
+
+# --------------------------------------------------------------------------
+# dupes --calibrate
+#
+# The two thresholds in config.py are the numbers review item [r6] proposed,
+# not numbers anyone measured. This scores every existing idea against every
+# other and prints the ranked pairs, so they can be re-picked from real data
+# before `serve` is ever armed (review item [r15]).
+#
+# Read-only: no store write, no Discord call. With --fixture it does not even
+# reach the roadmap.
+# --------------------------------------------------------------------------
+def cmd_dupes(args: argparse.Namespace, env: Mapping[str, str], out: Any) -> int:
+    if not args.calibrate:
+        print("nothing to do: pass --calibrate.", file=out)
+        return EXIT_OK
+    if args.roadmap_yaml:
+        # The honest way to calibrate: roadmap.yaml on disk is the same data the
+        # API would return, and reading it needs no account, no tunnel and no
+        # network. Nothing is written back — this file is the admin's, and the
+        # bot never hand-edits it.
+        import yaml
+
+        with open(args.roadmap_yaml, encoding="utf-8") as handle:
+            ideas = (yaml.safe_load(handle) or {}).get("ideas") or []
+    elif args.fixture:
+        ideas = load_fixture(args.fixture).roadmap.ideas
+    else:  # pragma: no cover - the admin's live invocation
+        ideas = asyncio.run(_fetch_snapshot(env)).ideas
+
+    prepared = dupes.prepare(ideas, notes_max=cfg.DUPE_NOTES_MAX_CHARS)
+    print(f"scoring {len(prepared)} non-dupe ideas "
+          f"({len(prepared) * (len(prepared) - 1) // 2} pairs)", file=out)
+
+    pairs: list[tuple[float, str, str, str, str]] = []
+    for i, left in enumerate(prepared):
+        for right in prepared[i + 1:]:
+            drop = (dupes.STOPWORDS | dupes.group_words(left.group)
+                    | dupes.group_words(right.group))
+            value = dupes.score(left.title, left.body, right.title, right.body,
+                                drop=drop, title_weight=cfg.DUPE_TITLE_WEIGHT)
+            if value >= args.floor:
+                pairs.append((value, left.idea_id, right.idea_id,
+                              left.title, right.title))
+    pairs.sort(key=lambda row: (-row[0], row[1], row[2]))
+
+    low, high = cfg.DUPE_LOW_THRESHOLD, cfg.DUPE_HIGH_THRESHOLD
+    for value, a_id, b_id, a_title, b_title in pairs[:args.top]:
+        band = "HIGH" if value >= high else ("low " if value >= low else "    ")
+        print(f"{value:.3f} {band}  {a_id}  |  {b_id}", file=out)
+        print(f"              {a_title}", file=out)
+        print(f"              {b_title}", file=out)
+    above_high = sum(1 for row in pairs if row[0] >= high)
+    in_band = sum(1 for row in pairs if low <= row[0] < high)
+    gate = "on" if cfg.DUPE_POST_IN_THREAD else "OFF"
+    print(f"\nwith the shipped thresholds (low={low}, high={high}): "
+          f"{in_band} pair(s) would file a review entry, {above_high} would also "
+          f"reach the high band — where posting in the thread is {gate} "
+          f"(cfg.DUPE_POST_IN_THREAD).", file=out)
+    print("These numbers were picked from a run like this one against the real "
+          "roadmap; see cfg.DUPE_POST_IN_THREAD for what it measured. Re-run it "
+          "and re-check them before arming `serve` — that is [r15].", file=out)
+    return EXIT_OK
 
 
 # --------------------------------------------------------------------------
@@ -572,7 +703,12 @@ def _live_context(args: argparse.Namespace,
         action_cap=args.cap if args.cap is not None else DEFAULT_ACTION_CAP,
         editor_url=(env.get(cfg.ENV_ROADMAP_BASE_URL) or "").rstrip("/"),
         thread_url_template=("https://discord.com/channels/"
-                             f"{env.get(cfg.ENV_DISCORD_GUILD_ID, '')}/{{thread_id}}"))
+                             f"{env.get(cfg.ENV_DISCORD_GUILD_ID, '')}/{{thread_id}}"),
+        dupe_low=settings.dupe_low, dupe_high=settings.dupe_high,
+        dupe_title_weight=cfg.DUPE_TITLE_WEIGHT,
+        dupe_notes_max=cfg.DUPE_NOTES_MAX_CHARS,
+        dupe_candidates=cfg.DUPE_CANDIDATE_LIMIT,
+        dupe_post_in_thread=cfg.DUPE_POST_IN_THREAD)
 
 
 def _live(args: argparse.Namespace, env: Mapping[str, str], out: Any, *,
@@ -722,6 +858,29 @@ def build_parser() -> argparse.ArgumentParser:
     serve = subs.add_parser("serve", help="run the long-lived Discord runtime")
     common(serve)
 
+    review = subs.add_parser(
+        "review", help="list the review queue, or resolve an entry")
+    common(review)
+    review.add_argument("--all", action="store_true",
+                        help="include entries already resolved")
+    review.add_argument("--resolve", metavar="KEY", nargs="+", default=None,
+                        help="mark entries resolved. For a possible_dupe entry "
+                             "this IS the rejection: a resolved review is never "
+                             "raised again")
+
+    dupes_ = subs.add_parser(
+        "dupes", help="score the roadmap against itself to pick the thresholds")
+    common(dupes_)
+    dupes_.add_argument("--roadmap-yaml", metavar="PATH", default=None,
+                        help="score a roadmap.yaml on disk instead of fetching; "
+                             "read-only, and needs no account or network")
+    dupes_.add_argument("--calibrate", action="store_true",
+                        help="score every idea pair and print the ranking")
+    dupes_.add_argument("--top", type=int, default=100, metavar="N",
+                        help="how many pairs to print (default 100)")
+    dupes_.add_argument("--floor", type=float, default=0.3, metavar="X",
+                        help="ignore pairs below this score (default 0.3)")
+
     return parser
 
 
@@ -731,6 +890,8 @@ HANDLERS = {
     "apply": cmd_apply,
     "backfill": cmd_backfill,
     "serve": cmd_serve,
+    "review": cmd_review,
+    "dupes": cmd_dupes,
 }
 
 
@@ -767,6 +928,8 @@ __all__ = [
     "World",
     "apply_allowed",
     "build_parser",
+    "cmd_dupes",
+    "cmd_review",
     "check_env",
     "check_groups",
     "check_store",

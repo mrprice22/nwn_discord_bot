@@ -49,6 +49,7 @@ from dataclasses import dataclass, field, replace
 from typing import Any, Iterable, Iterator, Mapping, Sequence
 
 from nwnbot import config as cfg
+from nwnbot import dupes
 from nwnbot.config import MERIT_BY_TYPE
 from nwnbot.forum import ForumMessage, ForumSnapshot, ForumThread
 from nwnbot.roadmap import COMMENT_MAX_LEN, ForbiddenWrite, Snapshot
@@ -144,6 +145,33 @@ COMMENT_TEMPLATE = "Discord — {author}{where}:\n\n{body}"
 #: Appended to a Discord-bound message as a link back to the item.
 LINK_SUFFIX = "\n\n{url}"
 
+#: PROVISIONAL WORDING — review item [r14].
+#: Posted once in a *new* thread whose report scored above DUPE_HIGH_THRESHOLD
+#: against an existing item. It is a **question, not a verdict**: the thread's
+#: own idea has already been created and the reporter keeps their credit. Only
+#: a DM or admin setting `dupe_of` in the editor makes a duplicate real.
+DUPE_HINT_MESSAGE = (
+    "This looks like it may already be tracked as **{title}** — an admin will "
+    "check. Either way your report is logged and stays yours.{link}"
+)
+
+#: PROVISIONAL WORDING — review item [r14].
+#: Posted once after a human has confirmed the duplicate by setting `dupe_of`.
+#: Says plainly that the thread stays open and the credit stays with the
+#: reporter, because "duplicate" reads like "dismissed" everywhere else.
+DUPE_CONFIRMED_MESSAGE = (
+    "Confirmed as the same issue as **{title}**, which is where it will be "
+    "tracked from here. This thread stays open and your report still counts "
+    "towards merit.{link}"
+)
+
+#: The internal note left on the *canonical* item when a duplicate is confirmed,
+#: so the extra demand shows up where the admin actually works. Never rendered.
+DUPE_CANONICAL_COMMENT = (
+    "Also reported by {player} in Discord{where}. Tracked as duplicate "
+    "{idea_id}."
+)
+
 
 # --------------------------------------------------------------------------
 # Review kinds — every judgement call the bot refuses to make on its own
@@ -158,6 +186,15 @@ REVIEW_NO_CHANNEL_FOR_TYPE = "no_channel_for_type"
 REVIEW_UNSLUGGABLE_TITLE = "unsluggable_title"
 REVIEW_BROKEN_LINK = "broken_link"
 REVIEW_DUPE_CYCLE = "dupe_cycle"
+#: A new thread scored inside the duplicate band. Always a proposal: the idea
+#: was created normally and no `dupe_of` was written. Resolving the entry
+#: without setting `dupe_of` is how you say "no" — a resolved review is never
+#: re-raised, because `Store.view()` loads every status, not just the open ones.
+REVIEW_POSSIBLE_DUPE = "possible_dupe"
+#: A `dupe_of` the bot had already announced to the reporter has been removed.
+#: The player was told something that is no longer true; the bot does not post
+#: a retraction on its own, it asks.
+REVIEW_DUPE_UNLINKED = "dupe_unlinked"
 REVIEW_UNKNOWN_STATUS = "unknown_status"
 REVIEW_ACTION_CAP = "action_cap"
 
@@ -613,6 +650,19 @@ class PlanContext:
     action_cap: int = DEFAULT_ACTION_CAP
     editor_url: str = ""
     thread_url_template: str = ""
+    # [b9-dupes]. Thresholds are an input like everything else here: config.py
+    # owns the values, cli.py passes them, and nothing in this module imports
+    # them. Zero thresholds mean the scorer never runs at all, which is what a
+    # PlanContext() built by hand in a test gets unless it asks for otherwise.
+    dupe_low: float = 0.0
+    dupe_high: float = 0.0
+    dupe_title_weight: float = 0.6
+    dupe_notes_max: int = 800
+    dupe_candidates: int = 5
+    # Whether the high band may speak to the player at all. Off by default and
+    # off in config: measured recall does not justify telling a reporter their
+    # report may be a duplicate. The review entry is filed either way.
+    dupe_post_in_thread: bool = False
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "tag_groups", dict(self.tag_groups))
@@ -772,6 +822,7 @@ def plan_discord_to_roadmap(roadmap: Snapshot, forum: ForumSnapshot,
     by_id = roadmap.by_id
     actions: list[Action] = []
     minted: list[str] = []
+    candidates: tuple[dupes.Prepared, ...] | None = None
 
     for thread in forum.threads:
         idea_id = _linked_idea_id(thread, view, roadmap)
@@ -783,19 +834,18 @@ def plan_discord_to_roadmap(roadmap: Snapshot, forum: ForumSnapshot,
             continue
 
         if idea_id is None:
-            # ---------------------------------------------------------------
-            # [b9-dupes] HOOK SEAM. Duplicate detection runs *here*, before the
-            # create-idea branch below: score this thread against every
-            # non-`dupe_of` idea and, above the high threshold, hand
-            # `_plan_new_idea` a `dupe_of` (resolved transitively via
-            # `resolve_canonical`, never pointing at another dupe row) plus an
-            # `AppendComment` on the canonical item. `[b9]` is unpickable until
-            # its thresholds are answered in `[r6]`, so nothing scores here yet
-            # and `_plan_new_idea` takes `dupe_of=None`. The store already
-            # carries the admin decisions b9 needs (`DECISION_DUPE_REMOVED`), so
-            # slotting it in adds a call, not a rewrite.
-            # ---------------------------------------------------------------
-            _plan_new_idea(actions, thread, roadmap, view, ctx, minted)
+            # [b9-dupes]. Score first, create unconditionally, propose second.
+            # `_plan_new_idea` is called with `dupe_of=None` on every path and
+            # in every band: review item [r6] settled that the bot never writes
+            # `dupe_of` at all, because a wrong merge silently steals a player's
+            # merit credit. The parameter stays on the signature as the seam a
+            # later policy would use, and a test asserts nothing passes it.
+            if candidates is None:  # built once per run, and only if needed
+                candidates = _dupe_candidates(roadmap, ctx)
+            best = _best_dupe(thread, candidates, ctx)
+            new_id = _plan_new_idea(actions, thread, roadmap, view, ctx, minted)
+            if new_id and best is not None:
+                _plan_dupe_hint(actions, thread, new_id, best, view, ctx)
             continue
 
         idea = by_id[idea_id]
@@ -820,7 +870,7 @@ def _review(actions: list[Action], view: StoreView, kind: str, subject: str,
 
 def _plan_new_idea(actions: list[Action], thread: ForumThread, roadmap: Snapshot,
                    view: StoreView, ctx: PlanContext, minted: list[str],
-                   dupe_of: str | None = None) -> None:
+                   dupe_of: str | None = None) -> str | None:
     """The create-idea branch. Every unknown is a review item, never a guess."""
     if thread.archived or thread.locked:
         # A thread that was already closed before the bot ever saw it is
@@ -893,6 +943,114 @@ def _plan_new_idea(actions: list[Action], thread: ForumThread, roadmap: Snapshot
     starter = thread.starter
     if starter is not None and starter.content.strip():
         actions.append(_comment_action(idea_id, thread, starter, ctx))
+
+    # The id, so the caller can tell an idea was really minted. Every guard
+    # above returns None instead, and [b9-dupes] leans on the difference: a
+    # duplicate hint must never name an idea that was never created.
+    return idea_id
+
+
+# --------------------------------------------------------------------------
+# [b9-dupes] — duplicate detection. Every outcome is a proposal.
+#
+# Review item [r6], answered 2026-09-05: the bot **never writes `dupe_of`**.
+# Three bands, and the new idea is created identically in all three, so a false
+# positive can never swallow a real report:
+#
+#   below ctx.dupe_low    silence
+#   low .. high           a review-queue entry; nothing said in Discord
+#   at/above ctx.dupe_high  that entry, plus one line in the reporter's thread
+#
+# A duplicate becomes real only when a DM or admin sets `dupe_of` in the editor.
+# `_plan_confirmed_dupe` below is what the bot does *after* that happens.
+# --------------------------------------------------------------------------
+def _dupe_scoring_on(ctx: PlanContext) -> bool:
+    """Thresholds default to zero, so a hand-built PlanContext scores nothing."""
+    return ctx.dupe_low > 0.0 and ctx.dupe_high >= ctx.dupe_low
+
+
+def _dupe_candidates(roadmap: Snapshot, ctx: PlanContext) -> tuple[dupes.Prepared, ...]:
+    """Every non-`dupe_of` idea, notes flattened once for the whole run.
+
+    Flattening HTML notes is the expensive half of scoring, so it happens once
+    per plan rather than once per (thread, candidate) pair.
+    """
+    if not _dupe_scoring_on(ctx):
+        return ()
+    return dupes.prepare(roadmap.ideas, notes_max=ctx.dupe_notes_max)
+
+
+def _best_dupe(thread: ForumThread, candidates: Sequence[dupes.Prepared],
+               ctx: PlanContext) -> dupes.Candidate | None:
+    """The closest existing idea, or ``None`` when nothing clears the low band."""
+    if not candidates:
+        return None
+    ranked = dupes.rank(thread.title, thread.body, candidates,
+                        tag_names=thread.tag_names,
+                        title_weight=ctx.dupe_title_weight,
+                        limit=ctx.dupe_candidates)
+    if not ranked:
+        return None
+    best = ranked[0]
+    return best if best.value >= ctx.dupe_low else None
+
+
+def _plan_dupe_hint(actions: list[Action], thread: ForumThread, idea_id: str,
+                    best: dupes.Candidate, view: StoreView, ctx: PlanContext) -> None:
+    """File the proposal, and above the high band tell the reporter too.
+
+    The review key carries both ids, so resolving it is a durable "no" for that
+    exact pair: `Store.view()` loads reviews of *every* status, so `_review`
+    never re-raises one that has been resolved.
+    """
+    key = f"{REVIEW_POSSIBLE_DUPE}:{thread.id}:{best.idea_id}"
+    _review(actions, view, REVIEW_POSSIBLE_DUPE, thread.id,
+            f"thread {thread.id} ({thread.title!r}) scores {best.value:.2f} against "
+            f"idea {best.idea_id!r} ({best.title!r}); filed as {idea_id!r} with no "
+            f"dupe_of. Set dupe_of in the editor to confirm, or resolve this entry "
+            f"to reject it",
+            thread_id=thread.id, idea_id=idea_id, review_key=key)
+
+    if best.value < ctx.dupe_high or not ctx.dupe_post_in_thread:
+        # The quiet band: a question for the admin, not for the player. Also
+        # where every candidate lands while `dupe_post_in_thread` is off, which
+        # is the shipped default — see cfg.DUPE_POST_IN_THREAD for the numbers.
+        return
+    text = DUPE_HINT_MESSAGE.format(title=best.title, link=ctx._link(best.idea_id))
+    actions.append(PostMessage(thread_id=thread.id, idea_id=idea_id, text=text,
+                               kind="dupe_hint", field_name="dupe_hint",
+                               value=best.idea_id))
+
+
+def _plan_confirmed_dupe(actions: list[Action], idea: Mapping[str, Any], idea_id: str,
+                         canonical: str, thread: ForumThread, roadmap: Snapshot,
+                         view: StoreView, ctx: PlanContext) -> bool:
+    """A human set `dupe_of`. Say so once, and note the demand on the canonical.
+
+    Returns True when this cycle planned the announcement, so the caller can let
+    the status branches run on every *other* cycle. The thread is deliberately
+    neither archived nor locked: the reporter keeps their thread and their merit
+    credit, and closing follows the canonical item's `merit_awarded` further down.
+    """
+    if view.unchanged(idea_id, "dupe_of", canonical):
+        return False
+    target = roadmap.by_id.get(canonical) or {}
+    title = str(target.get("title") or canonical)
+
+    text = DUPE_CONFIRMED_MESSAGE.format(title=title, link=ctx._link(canonical))
+    actions.append(PostMessage(thread_id=thread.id, idea_id=idea_id, text=text,
+                               kind="dupe_confirmed", field_name="dupe_of",
+                               value=canonical))
+
+    url = thread.url or ctx.thread_url(thread.id)
+    where = f" ({url})" if url else ""
+    actions.append(AppendComment(
+        idea_id=canonical,
+        text=DUPE_CANONICAL_COMMENT.format(
+            player=str(idea.get("player") or "an unmatched author"),
+            where=where, idea_id=idea_id),
+        thread_id=thread.id, field_name=f"dupe_of:{idea_id}"))
+    return True
 
 
 def _comment_action(idea_id: str, thread: ForumThread, message: ForumMessage,
@@ -1010,6 +1168,29 @@ def plan_roadmap_to_discord(roadmap: Snapshot, forum: ForumSnapshot,
                     f"cannot be resolved", idea_id=idea_id, thread_id=thread.id)
             continue
         governing = by_id.get(canonical or idea_id, idea)
+
+        # [b9-dupes]. A human confirmed a duplicate in the editor: say it once,
+        # note the demand on the canonical, and let the close path below take
+        # over on later cycles. The thread is never archived for being a dupe.
+        closing = (_is_true(governing.get("merit_awarded"))
+                   or idea.get("status") == "unlikely")
+        if idea.get("dupe_of") and canonical and canonical != idea_id and not closing:
+            # ...but not when the thread is about to be archived anyway. The
+            # real news is one message away, and "this is a duplicate" directly
+            # before "this shipped, closing" is noise, not information.
+            if _plan_confirmed_dupe(actions, idea, idea_id, canonical, thread,
+                                    roadmap, view, ctx):
+                continue
+        elif not idea.get("dupe_of") and view.seen(idea_id, "dupe_of"):
+            # Announced, then un-linked by hand. The reporter has been told
+            # something that is no longer true. The bot does not decide to
+            # retract — the content hash already stops it re-announcing, so all
+            # that is left is to tell the admin a player is holding stale news.
+            _review(actions, view, REVIEW_DUPE_UNLINKED, idea_id,
+                    f"idea {idea_id!r} was announced in thread {thread.id} as a "
+                    f"duplicate and its dupe_of has since been removed; the "
+                    f"reporter has not been told otherwise",
+                    idea_id=idea_id, thread_id=thread.id)
 
         # merit_awarded is the close signal — the boolean, not the status.
         if _is_true(governing.get("merit_awarded")):
@@ -1217,6 +1398,9 @@ __all__ = [
     "AppendComment",
     "ArchiveThread",
     "COMMENT_TEMPLATE",
+    "DUPE_CANONICAL_COMMENT",
+    "DUPE_CONFIRMED_MESSAGE",
+    "DUPE_HINT_MESSAGE",
     "CreateIdea",
     "CreateThread",
     "DEFAULT_ACTION_CAP",
@@ -1231,8 +1415,10 @@ __all__ = [
     "REVIEW_ACTION_CAP",
     "REVIEW_BROKEN_LINK",
     "REVIEW_DUPE_CYCLE",
+    "REVIEW_DUPE_UNLINKED",
     "REVIEW_NO_CHANNEL_FOR_TYPE",
     "REVIEW_PLAYER_NOT_ON_ROSTER",
+    "REVIEW_POSSIBLE_DUPE",
     "REVIEW_TAG_MAPPING_MISSING",
     "REVIEW_THREAD_RENAMED",
     "REVIEW_UNKNOWN_AUTHOR",

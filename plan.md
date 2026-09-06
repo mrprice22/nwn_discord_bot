@@ -194,44 +194,44 @@ header comment saying so (mirror `nwn_homers_lotr/systemd/llm-autopilot.service`
 **Acceptance:** `python -m nwnbot plan` against fakes prints an action list and writes nothing;
 `apply` without `--yes` exits non-zero; the unit file passes `systemd-analyze verify`.
 
-### `[b9-dupes]` — status: blocked
-*Blocked: the two thresholds and the auto-merge policy are unanswered — see review item `r6`.
-The seam is already in place: `plan_discord_to_roadmap()` has the hook immediately before the
-create-idea branch, `_plan_new_idea` takes `dupe_of`, and `resolve_canonical()` (transitive,
-cycle ⇒ review) and `store.DECISION_DUPE_REMOVED` shipped with `[b6-sync]`. This item is a
-scoring function and its thresholds, not a rewrite.*
+### `[b9-dupes]` — status: done
+*Unblocked 2026-09-05: `[r6]` is answered, and answered as a third shape rather than either
+option it offered — see the entry.*
 Duplicate detection for ideas raised more than once in Discord. Runs inside
-`plan_discord_to_roadmap()` **before** the create-idea branch, and never merges on its own —
-a wrong merge silently steals a player's merit credit, so every match is a proposal.
+`plan_discord_to_roadmap()` before the create-idea branch. **The bot never writes `dupe_of`**:
+every match is a proposal, and a DM or admin confirms it by setting `dupe_of` in the editor.
 
-- **Score** a new thread against every non-`dupe_of` idea (~428 today, so an O(n) pass per new
-  thread is fine — no index needed). Combine `difflib.SequenceMatcher` on normalized titles
-  with token-set overlap over title + first post, after stripping stopwords and the
-  group/tag word itself. Stdlib only; do not add a fuzzy-match dependency for this.
-- **Three bands**, both thresholds in `config.py` so they can be tuned without a code change:
-  - below the low threshold ⇒ ordinary new idea, no mention of duplicates;
-  - between ⇒ create the idea as normal, and additionally post one "possible duplicate of
-    *<title>*" line in the thread with a link to `#idea-<id>`, plus a review-queue entry. The
-    idea is still created — a false positive must never swallow a real report;
-  - above the high threshold ⇒ still create the idea, but as a **dupe row**: `dupe_of:
-    <canonical-id>`, its own `player:`, `hidden: true`, and the thread linked to it. Post in the
-    thread that it has been linked to the existing item, and append a `comment` on the
-    **canonical** idea naming the new reporter and the thread URL, so the admin sees the extra
-    demand where they actually work.
-- **Never** collapse two threads into one Discord-side, and never archive the newer thread —
-  the reporter keeps their thread and their credit. Closing follows the canonical item's
-  `merit_awarded`, so `[b6-sync]`'s close path must follow `dupe_of` to find the item whose
-  merit governs the thread.
-- **Never** create a dupe row pointing at another dupe row: resolve `dupe_of` transitively to
-  the canonical id first, and treat a cycle as a review item rather than an exception.
-- The admin can undo either outcome in the editor; the bot must tolerate a `dupe_of` it did not
-  write being removed, and must not re-add it (record the decision in the store).
+- **Score** (`nwnbot/dupes.py`, stdlib only): `difflib.SequenceMatcher` on normalized titles
+  blended with token-set overlap over title + first post, group and tag words stripped from both
+  sides. `notes` is flattened through the real `html_to_md` and truncated; `impl_notes` is not
+  read. O(n) over ~404 candidates, prepared once per run.
+- **Three bands**, both thresholds in `config.py`: below low ⇒ silence; low–high ⇒ a review
+  entry only; at/above high ⇒ that entry plus a line in the thread, gated by
+  `DUPE_POST_IN_THREAD`. **In every band the idea is created normally with no `dupe_of`**, so a
+  false positive can never swallow a real report.
+- **Confirmation** is observed, not commanded: when a human sets `dupe_of`,
+  `plan_roadmap_to_discord` posts once in the reporter's thread, appends a `comment` on the
+  canonical naming the second reporter, and lets the existing close path follow the canonical's
+  `merit_awarded`. The thread is never archived or locked for being a duplicate.
+- **Rejection** is resolving the review entry — no new mechanism, because `Store.view()` already
+  loads reviews of every status, so a resolved entry is never re-raised. `review` (new
+  subcommand) is what makes that reachable.
+- **Un-linking** a `dupe_of` the bot announced files `REVIEW_DUPE_UNLINKED`. The bot does not
+  retract on its own.
 
-**Acceptance:** table-driven tests over real title pairs from `roadmap.yaml` — the known
-duplicate clusters (e.g. the `smith can disenchant negative abilities` family) score above the
-high threshold, and unrelated items in the same group score below the low one. A dupe row
-created by the planner passes `roadmap-lint.py`, and re-running the planner on the result
-produces no further actions.
+**The thresholds were measured, not chosen** — `dupes --calibrate` (new subcommand) against the
+real `roadmap.yaml`, using its five existing `dupe_of` rows as ground truth. The result is the
+item's most important output and is written up in `future-llm-dupe-matching.md`: a token scorer
+gets ~20% recall at a 10% false-positive rate on this corpus, and `[r6]`'s proposed 0.55/0.85
+would have found **none** of the five. Hence `DUPE_POST_IN_THREAD = False`.
+
+**Acceptance:** met, with one criterion revised on evidence. Table-driven tests cover every band,
+the confirmed-dupe path and the un-link path; the "no planner ever writes `dupe_of`" invariant is
+asserted directly across all three context shapes; a resolved review is not re-raised; replaying
+a plan is still a no-op. The original criterion "the known duplicate clusters score above the
+high threshold" is **not achievable and is now asserted as a known limit instead**
+(`tests/test_dupes.py`) — the real duplicates in this roadmap are paraphrases, and lexical
+overlap cannot see them. `roadmap-lint.py` is unaffected: nothing writes `dupe_of`.
 
 ### `[b10-wording]` — status: done
 Replace every `PROVISIONAL WORDING` placeholder with the answers to `[r8]` and `[r11]`:
@@ -374,14 +374,50 @@ the same time.
 **Rotation:** `python3 bin/roadmap-users.py passwd nwnbot` (it revokes the account's sessions);
 update `ROADMAP_PASSWORD` in `.env` to match.
 
-### `[r6]` 2026-09-05 — Duplicate-match thresholds, and how aggressive to be — status: open
+### `[r6]` 2026-09-05 — Duplicate-match thresholds, and how aggressive to be — status: answered
 `[b9-dupes]` needs two numbers and one policy call. A false merge steals merit credit; a missed
 duplicate just means you merge it by hand in the editor, as you do today.
 **Proposed:** start deliberately shy — low threshold 0.55 (mention only), high threshold 0.85
 (auto `dupe_of`), and run the first two weeks with the high band **disabled** so every candidate
 is only a suggestion in the thread plus a review entry. Turn auto-merge on once the suggestions
 have been right consistently. Alternative: never auto-merge at all and always leave it to you.
-**Answer:** _(unanswered)_
+**Answer:** 2026-09-05 — neither, in three parts.
+
+**(1) Auto-merge is removed, not deferred.** The bot never writes `dupe_of` in any band. A
+duplicate becomes real only when a DM or admin sets `dupe_of` in the editor — the action the
+admin already takes today — and the bot's job is to notice and tidy up after it: tell the
+reporter, note the extra demand on the canonical, and close on the canonical's `merit_awarded`.
+Asserted directly across every planner path, not left as a comment.
+
+**(2) The bands are quiet vs. loud, not suggest vs. merge.** Below low, silence; low–high, a
+review-queue entry and nothing said in Discord; above high, that entry plus one line in the
+thread. In every band the reporter's own idea is created normally, so a false positive can never
+swallow a real report. Rejecting a suggestion is resolving its review entry — which needed no
+new mechanism, because `Store.view()` already loads reviews of every status, but did need the
+new `review` subcommand to be reachable at all.
+
+**(3) The numbers are measured, and the measurement changed the answer.** `dupes --calibrate`
+was run against the real `roadmap.yaml`, using its **five existing `dupe_of` rows as ground
+truth**. Findings, in full in `future-llm-dupe-matching.md`:
+
+- The five known duplicates score 0.10–0.51. Only **2 of 5** rank their true canonical first;
+  the rest land at #4, #19 and #93.
+- Scoring all 404 ideas as fresh threads, the top-1 match — a false positive by construction —
+  is ≥0.20 for 53% of them, ≥0.30 for 18%, ≥0.50 for 10%.
+- **The proposed 0.55/0.85 would have found none of the five.**
+- The strongest lexical signals in the corpus are *deliberately distinct* siblings: "Prestige
+  quest: Pale Master (L11+)" vs "Prestige quest: Weapon Master (L13+)" scores 0.83, above every
+  real duplicate.
+
+The real duplicates here are **paraphrases** ("rest-menu teleport back to where you last ported"
+vs "expand rest-menu teleports"), which lexical overlap cannot see. So the shipped values are
+`low=0.50`, `high=0.85`, `title_weight=0.3`, and **`DUPE_POST_IN_THREAD = False`**: a matcher
+right about one duplicate in five has not earned a player-visible claim. The admin still sees
+every candidate in the review queue. The gate is one line to flip.
+
+**This is the evidence for the LLM path**, and it arrived before shipping rather than after
+months of production. Recovering the other 80% needs semantic matching — designed, costed and
+measured in `future-llm-dupe-matching.md`, and not built.
 
 ### `[r7]` 2026-09-05 — Packaging and async-test conventions — status: open
 Raised by `[b1-scaffold]`; **blocks nothing** — b7 has a working default either way, so
@@ -543,6 +579,32 @@ match pays the wrong player and nothing detects it afterwards.
    files every companion report under the wrong group, silently.
 **Answer:** _(unanswered)_
 
+### `[r14]` 2026-09-05 — Three new strings from `[b9-dupes]` — status: open
+Blocks nothing; all three ship marked `PROVISIONAL WORDING` and **the first two are unreachable
+today**, because `DUPE_POST_IN_THREAD` is off and no duplicate is confirmed automatically.
+1. **`DUPE_HINT_MESSAGE`** — posted in a new thread whose report scored above the high band.
+   Currently: *"This looks like it may already be tracked as **X** — an admin will check. Either
+   way your report is logged and stays yours."* Written as a question, not a verdict.
+2. **`DUPE_CONFIRMED_MESSAGE`** — posted after a human confirms. Currently: *"Confirmed as the
+   same issue as **X**, which is where it will be tracked from here. This thread stays open and
+   your report still counts towards merit."* The second sentence is the point: "duplicate" reads
+   like "dismissed" everywhere else, and here it must not.
+3. **`DUPE_CANONICAL_COMMENT`** — internal, never rendered: *"Also reported by {player} in
+   Discord{where}. Tracked as duplicate {idea_id}."*
+**Proposed:** approve as written, in the `[r8]`/`[r11]` style.
+**Answer:** _(unanswered)_
+
+### `[r15]` 2026-09-05 — Confirm the measured duplicate settings — status: open
+Blocks nothing; the conservative option is shipped. Raised by `[b9-dupes]`, which measured rather
+than guessed and got an uncomfortable answer.
+`low=0.50`, `high=0.85`, `title_weight=0.3`, `DUPE_POST_IN_THREAD=False`. On this corpus that is
+~20% recall at a ~10% false-positive rate; see `[r6]` and `future-llm-dupe-matching.md`.
+**Proposed:** confirm the gate stays off, and treat the review-queue entries as the whole feature
+for now. Re-run `python -m nwnbot dupes --calibrate --roadmap-yaml <path>` after any change to
+the scorer, and before arming `serve`. Turning the gate on is a decision, not a tuning step —
+and on this evidence the thing that earns it is semantic matching, not a different number.
+**Answer:** _(unanswered)_
+
 ---
 
 ## Log
@@ -558,3 +620,4 @@ One line per completed item: id · date · commit · what shipped.
 `[b2-roadmap-schema]` · 2026-09-05 · nwn_homers_lotr@806bd444435 · The `discord` idea field and a `{view, edit, uat}` `bot` role, with `BOT_FORBIDDEN` plus whitelist and partition assertions; committed there, not pushed.
 `[b10-wording]` · 2026-09-05 · 98b597c · Every `PROVISIONAL WORDING` marker replaced by the settled string and the review item that settled it; the truncation marker now says the text was cut, and a bot-opened thread says where it came from.
 `[b11-code-tags]` · 2026-09-05 · 3216a94 + nwn_homers_lotr@dd91ee5a4a3 · `<code>`/`<pre>` on the sanitizer whitelist in all four places it is mirrored, and the render round trip to match; verified against the real `sanitize_notes`, not a local copy of it.
+`[b9-dupes]` · 2026-09-05 · TBC · Stdlib duplicate scoring wired into the existing planner seam, every outcome a proposal and `dupe_of` unwritable by any path; thresholds measured against the roadmap's own five confirmed duplicates rather than guessed, which is what put `DUPE_POST_IN_THREAD` off and produced `future-llm-dupe-matching.md`; `review` and `dupes` subcommands added because rejecting a suggestion and calibrating a threshold were both unreachable.

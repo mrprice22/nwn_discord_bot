@@ -761,3 +761,189 @@ def test_the_bot_only_ever_creates_defects_and_enhancements():
         created = [a for a in plan if isinstance(a, CreateIdea)]
         assert [a.idea["type"] for a in created] == [expected]
         assert all(a.idea["type"] != "Exploit" for a in created)
+
+
+# --------------------------------------------------------------------------
+# [b9-dupes] — duplicate detection. Every outcome is a proposal.
+#
+# The safety property is asserted first and directly: the bot never writes
+# `dupe_of`, in any band, on any path. Everything else is wording and volume.
+# --------------------------------------------------------------------------
+from dataclasses import replace as _replace  # noqa: E402
+
+from nwnbot.sync import (  # noqa: E402
+    REVIEW_DUPE_UNLINKED,
+    REVIEW_POSSIBLE_DUPE,
+    plan_roadmap_to_discord as _r2d,
+)
+
+#: A context with the scorer armed. Thresholds default to 0.0, so every test
+#: written before b9 plans exactly what it always did.
+DUPE_CTX = _replace(CTX, dupe_low=0.30, dupe_high=0.60, dupe_title_weight=0.6,
+                    dupe_post_in_thread=True)
+
+#: The same, with the shipped posting gate: candidates are filed, never posted.
+QUIET_CTX = _replace(DUPE_CTX, dupe_post_in_thread=False)
+
+EXISTING = idea("forge-bank-tab-order-resets", title="Bank tab order resets",
+                group="forge", notes="<div>my bank tabs revert to the old order</div>")
+
+
+def dupe_thread(title="Bank tab order resets", body="my bank tabs revert"):
+    return thread("t-dupe", title=title, starter=msg("m-1", content=body, starter=True))
+
+
+def test_below_the_low_threshold_says_nothing_about_duplicates():
+    plan = plan_discord_to_roadmap(
+        roadmap(EXISTING), forum(dupe_thread(title="Dragon boss dies too fast",
+                                             body="the fight is over instantly")),
+        None, DUPE_CTX)
+    assert kinds(plan) == ["CreateIdea", "AppendComment"]
+    assert review_kinds(plan) == []
+
+
+def test_the_middle_band_files_a_review_entry_and_stays_out_of_discord():
+    # "Bank storage order" against "Bank tab order resets" scores 0.50 — over
+    # the low threshold, under the high one. A question for the admin only.
+    plan = plan_discord_to_roadmap(
+        roadmap(EXISTING), forum(dupe_thread(title="Bank storage order", body="")),
+        None, DUPE_CTX)
+    assert review_kinds(plan) == [REVIEW_POSSIBLE_DUPE]
+    assert "PostMessage" not in kinds(plan)
+
+
+def test_the_high_band_also_tells_the_reporter_when_posting_is_armed():
+    plan = plan_discord_to_roadmap(
+        roadmap(EXISTING),
+        forum(dupe_thread(title="Bank tab order resets", body="")),
+        None, DUPE_CTX)
+    assert review_kinds(plan) == [REVIEW_POSSIBLE_DUPE]
+    assert "PostMessage" in kinds(plan)
+    post = [a for a in plan if isinstance(a, PostMessage)][0]
+    assert post.kind == "dupe_hint"
+    assert EXISTING["title"] in post.text
+    # It names the candidate, and it is a question, not a verdict.
+    assert post.idea_id and post.idea_id != EXISTING["id"]
+
+
+def test_the_shipped_gate_keeps_even_a_perfect_match_out_of_the_thread():
+    """DUPE_POST_IN_THREAD is off: measured recall does not earn a player-visible
+    claim. The admin still sees every candidate in the review queue."""
+    plan = plan_discord_to_roadmap(
+        roadmap(EXISTING),
+        forum(dupe_thread(title="Bank tab order resets", body="")),
+        None, QUIET_CTX)
+    assert review_kinds(plan) == [REVIEW_POSSIBLE_DUPE]
+    assert "PostMessage" not in kinds(plan)
+
+
+def test_a_thread_scored_as_a_duplicate_still_gets_its_own_idea():
+    """The whole safety property of [r6]: a false positive never swallows a report."""
+    plan = plan_discord_to_roadmap(
+        roadmap(EXISTING),
+        forum(dupe_thread(title="Bank tab order resets", body="")),
+        None, DUPE_CTX)
+    created = [a for a in plan if isinstance(a, CreateIdea)]
+    assert len(created) == 1
+    assert "dupe_of" not in created[0].idea
+    assert created[0].idea["player"] == PLAYER, "the reporter keeps their credit"
+
+
+@pytest.mark.parametrize("ctx", [DUPE_CTX, QUIET_CTX, CTX], ids=["loud", "quiet", "off"])
+def test_no_planner_path_ever_writes_dupe_of(ctx):
+    """The rule [r6] settled, asserted rather than commented.
+
+    A wrong merge silently steals a player's merit credit, so the bot proposes
+    and a human with editor access confirms. Nothing here may write the field.
+    """
+    snapshot = roadmap(EXISTING, idea("other", title="Bank tab ordering", group="forge"))
+    threads = forum(dupe_thread(), thread("t-2", title="Bank tab order resets too"))
+    for plan in (plan_discord_to_roadmap(snapshot, threads, None, ctx),
+                 _r2d(snapshot, threads, None, ctx)):
+        for action in plan:
+            if isinstance(action, CreateIdea):
+                assert "dupe_of" not in action.idea
+            if isinstance(action, UpdateIdeaField):
+                assert action.field_name != "dupe_of"
+
+
+def test_a_resolved_review_entry_is_the_rejection_and_is_never_re_raised():
+    key = f"{REVIEW_POSSIBLE_DUPE}:t-dupe:{EXISTING['id']}"
+    view = StoreView(reviewed=frozenset({key}))
+    plan = plan_discord_to_roadmap(roadmap(EXISTING), forum(dupe_thread()),
+                                   view, DUPE_CTX)
+    assert review_kinds(plan) == []
+
+
+def test_a_guard_that_stops_the_idea_also_stops_the_hint():
+    """An unknown author files no idea, so nothing may reference one."""
+    ctx = _replace(DUPE_CTX, players={})
+    plan = plan_discord_to_roadmap(roadmap(EXISTING), forum(dupe_thread()), None, ctx)
+    assert review_kinds(plan) == [REVIEW_UNKNOWN_AUTHOR]
+    assert kinds(plan) == ["ReviewItem"]
+
+
+def test_dupe_rows_are_never_offered_as_candidates():
+    """A second report is matched to the canonical item, never to another dupe."""
+    dupe_row = idea("bank-tab-order-resets-again", title="Bank tab order resets",
+                    group="forge", dupe_of=EXISTING["id"])
+    plan = plan_discord_to_roadmap(roadmap(EXISTING, dupe_row),
+                                   forum(dupe_thread()), None, DUPE_CTX)
+    entries = [a for a in plan if isinstance(a, ReviewItem)]
+    assert entries and dupe_row["id"] not in entries[0].review_key
+
+
+# -- the confirmed duplicate: what the bot does after a human sets dupe_of ---
+# `hidden`, so the roadmap->Discord planner does not also try to open a thread
+# for the canonical item in the same plan and drown the assertions.
+CANONICAL = idea("canonical-item", title="Bank tab order resets", group="forge",
+                 status="planned", type="Defect", hidden=True)
+
+
+def confirmed(**kw):
+    return idea("dupe-row", title="Bank tabs revert", group="forge", status="planned",
+                type="Defect", player=PLAYER, dupe_of="canonical-item",
+                discord={"thread_id": "t-1"}, **kw)
+
+
+def test_a_confirmed_duplicate_tells_the_reporter_and_notes_the_canonical():
+    plan = _r2d(roadmap(CANONICAL, confirmed()), forum(thread()), None, CTX)
+    assert kinds(plan) == ["PostMessage", "AppendComment"]
+    post, comment = plan.actions
+    assert post.kind == "dupe_confirmed"
+    assert CANONICAL["title"] in post.text
+    assert comment.idea_id == "canonical-item", "the demand lands on the canonical"
+    assert PLAYER in comment.text and "dupe-row" in comment.text
+
+
+def test_a_confirmed_duplicate_never_archives_or_locks_the_reporters_thread():
+    plan = _r2d(roadmap(CANONICAL, confirmed()), forum(thread()), None, CTX)
+    assert not [a for a in plan if isinstance(a, ArchiveThread)]
+
+
+def test_the_confirmation_is_announced_once():
+    world = roadmap(CANONICAL, confirmed())
+    first = _r2d(world, forum(thread()), None, CTX)
+    view = simulate(first, world, forum(thread()), StoreView.empty(), CTX)[2]
+    second = _r2d(world, forum(thread()), view, CTX)
+    assert second.writes == (), "the announcement must not repeat"
+    assert not [a for a in second if isinstance(a, (PostMessage, AppendComment))]
+
+
+def test_a_confirmation_is_not_announced_when_the_thread_is_about_to_close():
+    """Real news is one message away; "this is a duplicate" first is noise."""
+    awarded = idea("canonical-item", title="Bank tab order resets", group="forge",
+                   status="planned", type="Defect", hidden=True, merit_awarded=True)
+    plan = _r2d(roadmap(awarded, confirmed()), forum(thread()), None, CTX)
+    assert kinds(plan) == ["PostMessage", "ArchiveThread"]
+    assert plan.actions[0].kind == "merit"
+
+
+def test_removing_a_dupe_of_that_was_announced_is_a_review_item():
+    """The reporter was told something that is no longer true. Ask, do not retract."""
+    plain = idea("dupe-row", title="Bank tabs revert", group="forge", status="planned",
+                 type="Defect", player=PLAYER, discord={"thread_id": "t-1"})
+    view = StoreView(hashes={("dupe-row", "dupe_of"): content_hash("canonical-item")})
+    plan = _r2d(roadmap(CANONICAL, plain), forum(thread()), view, CTX)
+    assert REVIEW_DUPE_UNLINKED in review_kinds(plan)
+

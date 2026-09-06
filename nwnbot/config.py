@@ -98,6 +98,76 @@ BOT_WRITABLE_TYPES: frozenset[str] = frozenset({BUGS_ITEM_TYPE, FEATURES_ITEM_TY
 #: promotes an exploit by hand, and an update would revert it.
 CREATION_ONLY_FIELDS: frozenset[str] = frozenset({"type"})
 
+# --------------------------------------------------------------------------
+# Duplicate detection — [b9-dupes], answered by review item [r6]
+#
+# The bot **never writes** `dupe_of`. These values choose how loudly it
+# proposes, and nothing else. A duplicate becomes real only when a DM or admin
+# sets `dupe_of` in the roadmap editor.
+#
+#   below DUPE_LOW_THRESHOLD   silence
+#   low .. high                a review-queue entry; nothing said in Discord
+#   at/above DUPE_HIGH_THRESHOLD  that entry, plus a line in the reporter's
+#                              thread — but only if DUPE_POST_IN_THREAD is on
+#
+# In every band the new idea is created normally, with no `dupe_of`, so a false
+# positive can never swallow a real report.
+#
+# ---- These numbers are MEASURED, not proposed --------------------------------
+# `python -m nwnbot dupes --calibrate --roadmap-yaml <path>` was run against the
+# real roadmap (404 non-dupe ideas, and the 5 `dupe_of` rows already in it as
+# ground truth). What it showed:
+#
+#   * The 5 known duplicate pairs score 0.10-0.51 (title_weight 0.3). Only 2 of
+#     the 5 rank their true canonical first; the others land at #4, #19 and #93.
+#   * Scoring every idea as if it were a fresh thread, the top-1 match is a false
+#     positive by construction. That top-1 is >= 0.20 for 53% of them, >= 0.30
+#     for 18%, >= 0.50 for 10%.
+#
+# So the honest summary is: **on this corpus a token scorer buys roughly 20%
+# recall at a 10% false-positive rate.** The real duplicates here are
+# paraphrases ("rest-menu teleport back to where you last ported" vs "expand
+# rest-menu teleports"), and lexical overlap cannot see them. The strongest
+# lexical signals are the opposite — template-titled siblings ("Prestige quest:
+# Pale Master (L11+)" vs "Prestige quest: Weapon Master (L13+)") which score 0.83
+# and are deliberately distinct items.
+#
+# [r6]'s proposed 0.55/0.85 would have found **none** of the five.
+#
+# Hence DUPE_POST_IN_THREAD below. See future-llm-dupe-matching.md: recovering
+# the other 80% needs semantic matching, and this measurement is the evidence
+# for it.
+# --------------------------------------------------------------------------
+
+#: Below this, a candidate is not worth mentioning at all. 0.50 is the knee of
+#: the measured false-positive curve: ~10% of new threads file an entry.
+DUPE_LOW_THRESHOLD = 0.50
+
+#: At or above this the reporter would be told — gated by DUPE_POST_IN_THREAD.
+DUPE_HIGH_THRESHOLD = 0.85
+
+#: **Off, deliberately, on the evidence above.** A scorer that is right about
+#: one duplicate in five has not earned the right to tell a player their report
+#: may already be tracked; being told "this is probably a duplicate" wrongly is
+#: worse than being told nothing. The review queue still gets every candidate,
+#: so the admin sees them all. Turn this on when the matcher can carry it —
+#: which on this corpus means semantic matching, not a bigger number.
+DUPE_POST_IN_THREAD = False
+
+#: How `nwnbot.dupes.score` splits title similarity against token overlap.
+#: 0.3, measured: higher weights reward shared title boilerplate, which is what
+#: the roadmap's template-titled families are made of.
+DUPE_TITLE_WEIGHT = 0.3
+
+#: `notes` is truncated to this many characters before tokenizing. Measured
+#: against the real roadmap.yaml: notes are p90 1,028 chars and run to 4,347,
+#: and a long note dilutes its token set until it matches every other long note.
+DUPE_NOTES_MAX_CHARS = 800
+
+#: How many candidates `rank` returns. Only the best is banded; the rest exist
+#: so a review entry and `dupes --calibrate` can show near misses.
+DUPE_CANDIDATE_LIMIT = 5
+
 # Fields the bot must never write. Enforced as assertions in nwnbot.roadmap.
 FORBIDDEN_STATUSES: frozenset[str] = frozenset({"awarded", "implemented", "manual"})
 FORBIDDEN_FIELDS: frozenset[str] = frozenset({"merit_awarded", "notes", "impl_notes"})
@@ -117,6 +187,8 @@ ENV_DISCORD_FEATURES_FORUM_ID = "DISCORD_FEATURES_FORUM_ID"
 ENV_NWNBOT_DB = "NWNBOT_DB"
 ENV_NWNBOT_PLAYERS = "NWNBOT_PLAYERS"
 ENV_NWNBOT_DRY_RUN = "NWNBOT_DRY_RUN"
+ENV_NWNBOT_DUPE_LOW = "NWNBOT_DUPE_LOW"
+ENV_NWNBOT_DUPE_HIGH = "NWNBOT_DUPE_HIGH"
 
 # Fallback used when the bot runs on the same host as the editor.
 LOCAL_ROADMAP_BASE_URL = "http://127.0.0.1:8765"
@@ -130,6 +202,24 @@ DEFAULT_PLAYERS_PATH = "players.json"
 
 class ConfigError(Exception):
     """Configuration is missing, malformed or has drifted from the live systems."""
+
+
+def _threshold(raw: str, name: str, default: float) -> float:
+    """Parse a 0..1 threshold override. Empty means the default; junk is fatal.
+
+    The first numeric setting in this module, and it stays loud on purpose: a
+    typo that silently fell back to the default would change how the bot behaves
+    with no sign that it had.
+    """
+    if not raw:
+        return default
+    try:
+        value = float(raw)
+    except ValueError:
+        raise ConfigError(f"${name} must be a number in 0..1, got {raw!r}") from None
+    if not 0.0 <= value <= 1.0:
+        raise ConfigError(f"${name} must be in 0..1, got {value!r}")
+    return value
 
 
 # --------------------------------------------------------------------------
@@ -156,6 +246,8 @@ class Settings:
     db_path: str = DEFAULT_DB_PATH
     players_path: str = DEFAULT_PLAYERS_PATH
     dry_run: bool = True
+    dupe_low: float = DUPE_LOW_THRESHOLD
+    dupe_high: float = DUPE_HIGH_THRESHOLD
 
     @classmethod
     def from_env(cls, env: Mapping[str, str]) -> "Settings":
@@ -175,7 +267,20 @@ class Settings:
             players_path=get(ENV_NWNBOT_PLAYERS) or DEFAULT_PLAYERS_PATH,
             # Anything other than a deliberate "0" means plan-only.
             dry_run=get(ENV_NWNBOT_DRY_RUN, "1") != "0",
+            dupe_low=_threshold(get(ENV_NWNBOT_DUPE_LOW), ENV_NWNBOT_DUPE_LOW,
+                                DUPE_LOW_THRESHOLD),
+            dupe_high=_threshold(get(ENV_NWNBOT_DUPE_HIGH), ENV_NWNBOT_DUPE_HIGH,
+                                 DUPE_HIGH_THRESHOLD),
         )
+
+    def __post_init__(self) -> None:
+        # A band that is empty or inverted would silently change which of the
+        # three outcomes every new thread gets, so it is a loud failure.
+        if not 0.0 < self.dupe_low < self.dupe_high <= 1.0:
+            raise ConfigError(
+                f"duplicate thresholds must satisfy 0 < low < high <= 1; got "
+                f"low={self.dupe_low!r} high={self.dupe_high!r} "
+                f"(${ENV_NWNBOT_DUPE_LOW} / ${ENV_NWNBOT_DUPE_HIGH})")
 
     def channel_types(self) -> dict[str, str]:
         """Forum channel id -> item type. Ids come from the environment only."""
@@ -446,6 +551,12 @@ def write_players_seed(path: str | Path, roster: Iterable[str], *,
 
 __all__ = [
     "BOT_WRITABLE_TYPES",
+    "DUPE_CANDIDATE_LIMIT",
+    "DUPE_HIGH_THRESHOLD",
+    "DUPE_LOW_THRESHOLD",
+    "DUPE_NOTES_MAX_CHARS",
+    "DUPE_POST_IN_THREAD",
+    "DUPE_TITLE_WEIGHT",
     "BUGS_ITEM_TYPE",
     "CREATION_ONLY_FIELDS",
     "ConfigError",
