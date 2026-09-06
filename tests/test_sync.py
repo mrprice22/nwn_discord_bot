@@ -38,6 +38,7 @@ from nwnbot.sync import (
     REVIEW_UNKNOWN_CHANNEL,
     REVIEW_UNKNOWN_STATUS,
     REVIEW_UNMAPPED_TAG,
+    THREAD_HEADER,
     AppendComment,
     ArchiveThread,
     CreateIdea,
@@ -396,6 +397,24 @@ def test_open_item_with_no_thread_gets_one_tagged_from_its_group():
     assert plan[0].channel_id == BUGS               # Defect -> the bugs forum
     assert plan[0].tag_names == ("tag-forge",)
     assert plan[0].title == "A forge thing"
+
+
+def test_a_bot_opened_thread_says_where_it_came_from():
+    # [r11]: backfill opens one thread per open item, so the opening post has to
+    # explain itself. The header leads, so the 4000-char cut can never eat it.
+    notes = "<div>Something is wrong with the forge.</div>"
+    plan = plan_roadmap_to_discord(roadmap(idea(status="wip", notes=notes)),
+                                   forum(), None, CTX)
+    assert plan[0].body.startswith(THREAD_HEADER)
+    assert "Something is wrong with the forge." in plan[0].body
+
+
+def test_the_header_stands_alone_when_the_item_has_no_notes():
+    plan = plan_roadmap_to_discord(roadmap(idea(status="wip")), forum(), None, CTX)
+    body = plan[0].body
+    assert body.startswith(THREAD_HEADER)
+    # No `notes` must not leave a blank gap between the header and the link.
+    assert body == THREAD_HEADER + "\n\n" + CTX.idea_url("forge-thing")
 
 
 R2D_SKIP_CASES = [

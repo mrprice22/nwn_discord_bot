@@ -49,12 +49,19 @@ DISCORD_CDN_HOST = "cdn.discordapp.com"
 DISCORD_CDN_HOSTS = ("cdn.discordapp.com", "media.discordapp.net")
 
 # Appended once when a stored blob carries an expiring attachment link.
-# PROVISIONAL WORDING — see plan.md review item [r8]. Placeholder chosen to invent as
-# little as possible; the admin owns the final text.
+# Settled by review item [r8].2 — approved as written. It lands in the internal,
+# never-rendered `comments` list, so only the admin ever reads it.
 CDN_EXPIRY_NOTE = (
     "Note: Discord attachment links above are signed and expire, so they may "
     "404 later. The attachment was not rehosted."
 )
+
+# How a cut at DISCORD_TEXT_LIMIT is marked. Settled by review item [r8].1: the
+# marker says the text was *cut*, rather than leaving a bare "…" that reads like
+# the report simply ended. With no editor URL to offer there is nothing to say,
+# so the bare marker is the fallback.
+TRUNCATION_MARKER = "…"
+TRUNCATION_SUFFIX = "\n\n… (truncated — full item: {url})"
 
 # --- the tag vocabulary, all inside roadmap_sanitize.ALLOWED_TAGS -----------
 
@@ -75,6 +82,8 @@ __all__ = [
     "DISCORD_CDN_HOST",
     "DISCORD_CDN_HOSTS",
     "DISCORD_TEXT_LIMIT",
+    "TRUNCATION_MARKER",
+    "TRUNCATION_SUFFIX",
     "annotate_expiring_links",
     "find_expiring_links",
     "html_to_md",
@@ -538,12 +547,13 @@ def truncate_for_discord(text: str | None,
 
     The result — ellipsis and link included — is never longer than ``limit``.
 
-    The visible marker is a bare "…" plus the editor URL. PROVISIONAL WORDING —
-    see plan.md review item [r8]; players see this. The 4000-char limit itself
-    is settled.
+    The marker is :data:`TRUNCATION_SUFFIX` when there is an editor URL to link
+    and the bare :data:`TRUNCATION_MARKER` when there is not — settled by review
+    item [r8].1, as is the 4000-char limit.
     """
     body = "" if text is None else str(text)
-    suffix = "…" + ("\n\n" + editor_url if editor_url else "")
+    suffix = (TRUNCATION_SUFFIX.format(url=editor_url) if editor_url
+              else TRUNCATION_MARKER)
     if len(body) <= limit:
         return body
     room = limit - len(suffix)

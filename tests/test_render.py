@@ -23,6 +23,8 @@ import yaml
 from nwnbot.render import (
     CDN_EXPIRY_NOTE,
     DISCORD_TEXT_LIMIT,
+    TRUNCATION_MARKER,
+    TRUNCATION_SUFFIX,
     annotate_expiring_links,
     find_expiring_links,
     html_to_md,
@@ -335,14 +337,22 @@ def test_truncate_never_exceeds_the_limit(size):
 
 def test_truncate_keeps_a_link_back_to_the_editor():
     out = truncate_for_discord("word " * 5000, EDITOR_URL)
-    assert out.endswith(EDITOR_URL)
-    assert "…" in out
+    assert out.endswith(TRUNCATION_SUFFIX.format(url=EDITOR_URL))
+    assert EDITOR_URL in out
+
+
+def test_truncate_says_the_text_was_cut_not_that_it_ended():
+    # [r8].1: a bare "…" reads like the report simply trailed off.
+    out = truncate_for_discord("word " * 5000, EDITOR_URL)
+    assert "truncated" in out
 
 
 def test_truncate_without_a_url_still_marks_the_cut():
     out = truncate_for_discord("x" * 5000, None, limit=100)
     assert len(out) == 100
-    assert out.endswith("…")
+    assert out.endswith(TRUNCATION_MARKER)
+    # Nothing to link, so nothing to say about it.
+    assert "truncated" not in out
 
 
 def test_truncate_prefers_a_word_boundary():

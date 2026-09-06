@@ -87,7 +87,8 @@ TERMINAL_STATUSES = frozenset({"awarded", "unlikely"})
 #: Where a brand-new idea minted from a forum thread starts. "idea captured,
 #: under consideration (not committed to)" — the only status that describes a
 #: report nobody has triaged yet, and not one of the admin-only three.
-#: PROVISIONAL — see plan.md review item [r11]; the admin owns the triage status.
+#: Settled by review item [r11].2 — approved. A new triage status would have
+#: been a schema change, and so a reopening of [r1].
 NEW_IDEA_STATUS = "planned"
 
 #: Ids show up in URLs, `dupe_of` pickers and conflict messages; the editor
@@ -97,33 +98,47 @@ ID_MAX_LEN = 60
 # --------------------------------------------------------------------------
 # Player-visible strings
 #
-# PROVISIONAL WORDING — the admin owns every string a player can read. These
-# are placeholders that invent as little as possible, marked the same way as
-# `nwnbot/render.py`'s. Nothing reaches a player until `apply --yes` runs.
+# Settled by review item [r11].1. The admin owns every string a player can
+# read; these are the approved wordings, not placeholders. Changing one is a
+# review decision, not a refactor. Nothing reaches a player until `apply --yes`
+# runs with NWNBOT_DRY_RUN=0.
 # --------------------------------------------------------------------------
 
-#: Posted in a thread when the linked item's status changes.
-STATUS_MESSAGE = "Roadmap status for this report is now: {status} — {label}.{link}"
+#: Posted in a thread when the linked item's status changes. The raw status id
+#: trails the label because it is the word the editor and the roadmap page use,
+#: so a player who goes looking finds the same term.
+STATUS_MESSAGE = "Roadmap update — this is now **{label}** ({status}).{link}"
 
 #: Posted when the governing item's merit has really been paid. The thread is
 #: archived *and locked* straight after.
 MERIT_MESSAGE = (
-    "This has shipped and {merit} merit {points} been awarded for it "
+    "This has shipped, and {merit} merit {points} been awarded for it "
     "({type}). Thanks for the report — closing this thread.{link}"
 )
 
-#: Posted when an item is marked `unlikely`. Archived, deliberately NOT locked.
+#: Posted when an item is marked `unlikely`. Archived, deliberately NOT locked
+#: — and the wording says so, because an unlocked archive is easy to miss.
 UNLIKELY_MESSAGE = (
-    "This one is logged but not likely to be implemented. Archiving the thread; "
-    "it stays readable and unlocked.{link}"
+    "Logged, but not likely to be implemented. Archiving the thread — it stays "
+    "readable and unlocked, so add to it if you disagree.{link}"
+)
+
+#: Leads the opening post of a thread the bot opens from an existing roadmap
+#: item. [b8-backfill] will open one per open item, so without this a player
+#: meets a bot posting their own words back at them with no explanation.
+THREAD_HEADER = (
+    "Opened from the roadmap so it can be tracked and discussed here. "
+    "Replies on this thread reach the roadmap item."
 )
 
 #: Opening post of a thread the bot creates from an existing roadmap item.
+#: ``body`` already carries THREAD_HEADER — see :func:`_plan_new_thread`, which
+#: joins them so an item with empty ``notes`` does not leave a blank gap.
 THREAD_BODY = "{body}{link}"
 
 #: The internal, never-rendered `comments` entry a Discord message becomes.
-#: PROVISIONAL WORDING, though the blast radius is small: only the admin ever
-#: sees the `comments` list.
+#: Settled by [r11].1 alongside the rest, though the blast radius is small:
+#: only the admin ever sees the `comments` list.
 COMMENT_TEMPLATE = "Discord — {author}{where}:\n\n{body}"
 
 #: Appended to a Discord-bound message as a link back to the item.
@@ -1050,6 +1065,9 @@ def _plan_new_thread(actions: list[Action], idea: Mapping[str, Any],
     from nwnbot.render import html_to_md, truncate_for_discord
 
     body = html_to_md(idea.get("notes")) if idea.get("notes") else ""
+    # The header leads, so it survives the 4000-char cut by construction, and an
+    # item with no `notes` gets the header alone rather than a leading blank.
+    body = "\n\n".join(part for part in (THREAD_HEADER, body.strip()) if part)
     body = truncate_for_discord(THREAD_BODY.format(body=body, link=ctx._link(idea_id)),
                                 editor_url=ctx.idea_url(idea_id))
     actions.append(CreateThread(idea_id=idea_id, channel_id=channel_id,
@@ -1227,6 +1245,8 @@ __all__ = [
     "STATUSES",
     "STATUS_MESSAGE",
     "TERMINAL_STATUSES",
+    "THREAD_BODY",
+    "THREAD_HEADER",
     "UNLIKELY_MESSAGE",
     "UpdateIdeaField",
     "mint_idea_id",

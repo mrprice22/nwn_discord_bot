@@ -63,7 +63,7 @@ EXIT_REFUSED = 2
 DEFAULT_BACKFILL_PATH = "backfill-plan.md"
 
 # The message `apply` prints when it has not been given both keys. Operator-
-# facing, so the exact wording is a choice: PROVISIONAL WORDING.
+# facing only, no blast radius; approved as written by review item [r12].2.
 APPLY_REFUSAL = (
     "refusing to apply: this writes to the live Discord guild and the live roadmap.\n"
     "  It needs both keys turned at once:\n"
@@ -72,7 +72,8 @@ APPLY_REFUSAL = (
     "  Run `python -m nwnbot plan` first and read the action list."
 )
 
-# `backfill --yes` is not merely unset — it is blocked. PROVISIONAL WORDING.
+# `backfill --yes` is not merely unset — it is blocked. Approved as written by
+# review item [r12].2.
 BACKFILL_REFUSAL = (
     "refusing to run the backfill batch: it would open a forum thread per open\n"
     "  roadmap item, in one go, on a live player forum.\n"

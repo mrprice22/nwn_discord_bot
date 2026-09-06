@@ -59,11 +59,12 @@ log = logging.getLogger("nwnbot")
 # How often the full reconcile runs, in seconds (15 minutes, per plan.md).
 RECONCILE_INTERVAL_SECONDS = 15 * 60
 
-# PROVISIONAL WORDING / THRESHOLD — not stated in plan.md, queued for review.
-# A burst of forum activity (someone posting five replies in a row) should cost
-# one reconcile, not five. Events set a dirty flag and this is how long the
-# worker waits for the burst to settle before planning. Small enough that the
-# bot still feels immediate; large enough that a conversation is one cycle.
+# Settled by review item [r12].1 — approved at 5 s. A burst of forum activity
+# (someone posting five replies in a row) should cost one reconcile, not five.
+# Events set a dirty flag and this is how long the worker waits for the burst to
+# settle before planning. Small enough that the bot still feels immediate; large
+# enough that a conversation is one cycle, with the 15-minute reconcile as the
+# backstop if a burst is ever missed entirely.
 EVENT_DEBOUNCE_SECONDS = 5.0
 
 #: Review kind recorded when /api/save comes back `conflict: true` twice.
