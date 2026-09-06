@@ -233,18 +233,32 @@ high threshold, and unrelated items in the same group score below the low one. A
 created by the planner passes `roadmap-lint.py`, and re-running the planner on the result
 produces no further actions.
 
-### `[b10-wording]` — status: blocked
-*Blocked: two player-visible strings are the admin's to word — see review item `r8`.*
+### `[b10-wording]` — status: done
 Replace every `PROVISIONAL WORDING` placeholder with the answers to `[r8]` and `[r11]`:
-in `nwnbot/render.py` the truncation marker (a bare `…` plus the editor URL) and
-`CDN_EXPIRY_NOTE`; in `nwnbot/sync.py` the four Discord-bound strings `STATUS_MESSAGE`,
-`MERIT_MESSAGE`, `UNLIKELY_MESSAGE`, `THREAD_BODY`, the internal `COMMENT_TEMPLATE`, the
+in `nwnbot/render.py` the truncation marker (`… (truncated — full item: <url>)`, the
+alternative rather than the bare `…` the entry proposed) and `CDN_EXPIRY_NOTE`; in
+`nwnbot/sync.py` the four Discord-bound strings `STATUS_MESSAGE`, `MERIT_MESSAGE`,
+`UNLIKELY_MESSAGE`, `THREAD_BODY` — plus the new `THREAD_HEADER` — the internal `COMMENT_TEMPLATE`, the
 `LINK_SUFFIX` and the `_status_label()` map; in `nwnbot/cli.py` the operator-facing
 `APPLY_REFUSAL` and `BACKFILL_REFUSAL`, and in `nwnbot/bot.py` the
 `EVENT_DEBOUNCE_SECONDS` threshold (`[r12]`). All are single constants; the surrounding logic
 and its tests are shipped and settled.
 **Acceptance:** no `PROVISIONAL WORDING` comment remains in `nwnbot/`, the strings match the
 answers verbatim, and `pytest` still passes.
+
+### `[b11-code-tags]` — status: done
+*Raised by `[r8]`.3, where the admin overrode the proposal: `<code>`/`<pre>` join the roadmap
+sanitizer whitelist rather than being left out. Carved out of `[b10-wording]` because it edits
+`nwn_homers_lotr`, and kept standalone and revertible like `[b2-roadmap-schema]`.*
+Two commits, one per repo. In `nwn_homers_lotr`: `code`/`pre` into
+`roadmap_sanitize.ALLOWED_TAGS`, `pre` alone into `BLOCK_TAGS` (it closes an open `<p>` the way
+a browser does; `code` is inline and must not), `CODE`/`PRE` into the editor's `PASTE_TAGS` JS
+mirror, and `white-space: pre-wrap` in both the generated page and the contenteditable pane —
+a default `<pre>` does not wrap and would push a card wider than the content column. In
+`nwn_discord_bot`: `md_to_html` emits both, `html_to_md` reads them back.
+**Acceptance:** `roadmap-lint.py` clean; `md_to_html` output comes back from the real
+`sanitize_notes` byte for byte; the second round trip is a fixed point with fences in the
+corpus.
 
 ### `[b8-backfill]` — status: blocked
 *Blocked: human-gated by design; the batch must not run unattended. See review item `r4`.*
@@ -382,7 +396,7 @@ autopilot proceeds unless you say otherwise. Two conventions the later items inh
    explicitness; changing it later means touching every async test.
 **Answer:** _(unanswered)_
 
-### `[r8]` 2026-09-05 — Two player-visible strings from `[b4-render]` — status: open
+### `[r8]` 2026-09-05 — Two player-visible strings from `[b4-render]` — status: answered
 Blocks `[b10-wording]` only; `[b4-render]` itself is shipped with placeholders marked
 `PROVISIONAL WORDING` in the code. Nothing can reach a player until you run `apply --yes`.
 1. **Truncation marker.** Discord-bound text cuts at 4000 chars (settled). The marker is not.
@@ -399,7 +413,21 @@ Blocks `[b10-wording]` only; `[b4-render]` itself is shipped with placeholders m
    `roadmap-editor.py:4995`).
    **Proposed:** leave it out; backticks read fine in a bug report. Fold into
    `[b2-roadmap-schema]`/`[r1]` only if you want it.
-**Answer:** _(unanswered)_
+**Answer:** 2026-09-05 — (1) the **alternative**, not the proposal: the marker says the text was
+*cut*, `… (truncated — full item: <url>)`. A bare `…` reads like the report simply trailed off.
+With no editor URL there is nothing to say, so the bare `TRUNCATION_MARKER` stays as the
+fallback and is asserted both ways. (2) `CDN_EXPIRY_NOTE` approved as-is.
+(3) **The admin overrode the proposal: `code`/`pre` go in.** That is a `nwn_homers_lotr` edit,
+so rather than reopen `[b2]` — already committed there — it became its own item,
+`[b11-code-tags]`, shipped as `dd91ee5a4a3` (local, **not pushed**; merging and restarting the
+editor are the admin's, as with `[b2]`).
+**Verified:** `roadmap-lint.py` clean (409 ideas), `tests/check_roadmap_notes.py` passes
+(7 fixtures + 518 notes), and — the check that actually matters across the two repos —
+`md_to_html` output comes back from the real `sanitize_notes` byte for byte on six
+representative blobs, with `md -> html -> md` a fixed point through it.
+**One real risk, handled:** a default-styled `<pre>` does not wrap, so without the added
+`white-space: pre-wrap` a long log line would have pushed its roadmap card wider than the
+content column and taken the grid with it.
 
 ### `[r9]` 2026-09-05 — Which roadmap account does the bot use before `[r1]` lands? — status: answered
 Raised by `[b3-roadmap-client]`, and the sharpest of the three questions it produced. There is
@@ -429,7 +457,7 @@ Blocks nothing; both are implemented with the conservative option and are cheap 
    the run summary and exits non-zero. No retry, no forcing.
 **Answer:** _(unanswered)_
 
-### `[r11]` 2026-09-05 — Wording and three policy calls from `[b6-sync]` — status: open
+### `[r11]` 2026-09-05 — Wording and three policy calls from `[b6-sync]` — status: answered
 Blocks `[b10-wording]`. Nothing here can reach a player until you run `apply --yes`; all four
 are implemented with the most conservative option and marked `PROVISIONAL` in the code.
 1. **The player-visible strings.** `STATUS_MESSAGE`, `MERIT_MESSAGE`, `UNLIKELY_MESSAGE`,
@@ -450,9 +478,22 @@ are implemented with the most conservative option and marked `PROVISIONAL` in th
    skipped silently.
    **Proposed:** keep skipping. Old closed threads are history, and a bulk import is your call,
    not a side effect of the bot's first run.
-**Answer:** _(unanswered)_
+**Answer:** 2026-09-05 — (2), (3) and (4) approved as proposed: `NEW_IDEA_STATUS = "planned"`,
+quiet adoption, archived threads with no idea stay skipped. (1) the strings were **tightened**
+rather than approved verbatim: `STATUS_MESSAGE` leads with the plain-language label and trails
+the raw status id (kept, because it is the word the editor and the roadmap page use, so a
+player who goes looking finds the same term); `MERIT_MESSAGE` gained a comma;
+`UNLIKELY_MESSAGE` now says the archive is *unlocked*, which is easy to miss.
+`COMMENT_TEMPLATE`, `LINK_SUFFIX` and `_status_label()` are unchanged.
 
-### `[r12]` 2026-09-05 — Four small calls from `[b7-cli-runtime]` — status: open
+**A fifth call, raised and answered here:** `THREAD_BODY` said nothing about where a bot-opened
+thread came from. `[b8-backfill]` will open one per open item, so without it a player meets a
+bot posting their own words back at them with no explanation. `THREAD_HEADER` now leads the
+opening post — so it survives the 4000-char cut by construction — and `_plan_new_thread` joins
+it to the body rather than formatting it in, so an item with empty `notes` gets the header
+alone and not a leading blank. Both are asserted.
+
+### `[r12]` 2026-09-05 — Four small calls from `[b7-cli-runtime]` — status: answered
 Blocks `[b10-wording]` only. All four are implemented with the conservative option and marked
 `PROVISIONAL` in the code; none can reach a player.
 1. **`EVENT_DEBOUNCE_SECONDS = 5.0`** (`nwnbot/bot.py`) — how long the worker lets a burst of
@@ -471,7 +512,14 @@ Blocks `[b10-wording]` only. All four are implemented with the conservative opti
    `--tag-map` JSON file and exit naming `[b5-config]`/`[r2]` rather than guessing tag names.
    **Proposed:** confirm a JSON file is the right interim home, or say the mapping should wait
    entirely for `[b5]`.
-**Answer:** _(unanswered)_
+**Answer:** 2026-09-05 — (1) and (2) approved as proposed: `EVENT_DEBOUNCE_SECONDS = 5.0`,
+`APPLY_REFUSAL` and `BACKFILL_REFUSAL` as written. (3) the split live switch is confirmed, and
+`WorkingDirectory=/var/home/james/GIT/nwn_discord_bot` is **verified correct on this machine**:
+`/home` is a symlink to `/var/home`, so the `/var/home` form is the real path, which is what
+`ProtectSystem=strict` plus `ReadWritePaths=` need to resolve. (4) **moot — self-answered by
+`[b5-config]`**: `TAG_GROUPS` is compiled into `nwnbot/config.py` and `cli.tag_map_for` falls
+back to it (`cli.py:189`), so `--tag-map` is now an override for a renamed tag, not a
+requirement, and there is no interim home to choose.
 
 ### `[r13]` 2026-09-05 — Player identity, from `[b5-config]` — status: open
 Blocks nothing; the conservative option is implemented. **This one is merit money** — a wrong
@@ -508,3 +556,5 @@ One line per completed item: id · date · commit · what shipped.
 `[b7-cli-runtime]` · 2026-09-05 · c8566a3 · Five subcommands, the debounced event runtime sharing one planner with the 15-minute reconcile (asserted by a test, not a convention), and an un-armed systemd user unit; `apply` needs `--yes` *and* `NWNBOT_DRY_RUN=0`.
 `[b5-config]` · 2026-09-05 · 8bbbd2c · The settled 12-tag map folded into `config.py`, one drift rule set shared by `doctor` and the live path, `type` made creation-only in two places, and the silent `DISCORD_BOT_USER_ID` gap closed.
 `[b2-roadmap-schema]` · 2026-09-05 · nwn_homers_lotr@806bd444435 · The `discord` idea field and a `{view, edit, uat}` `bot` role, with `BOT_FORBIDDEN` plus whitelist and partition assertions; committed there, not pushed.
+`[b10-wording]` · 2026-09-05 · 98b597c · Every `PROVISIONAL WORDING` marker replaced by the settled string and the review item that settled it; the truncation marker now says the text was cut, and a bot-opened thread says where it came from.
+`[b11-code-tags]` · 2026-09-05 · 3216a94 + nwn_homers_lotr@dd91ee5a4a3 · `<code>`/`<pre>` on the sanitizer whitelist in all four places it is mirrored, and the render round trip to match; verified against the real `sanitize_notes`, not a local copy of it.
