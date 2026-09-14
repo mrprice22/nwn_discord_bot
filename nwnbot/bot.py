@@ -41,6 +41,7 @@ from nwnbot.forum import (Attachment, ForumSnapshot, ForumThread, ForumMessage,
 from nwnbot.roadmap import SaveConflict, Snapshot
 from nwnbot.store import StoreView
 from nwnbot.sync import (
+    unlinked_threads,
     AppendComment,
     ArchiveThread,
     CreateIdea,
@@ -181,12 +182,15 @@ class SyncEngine:
                  store: Any = None, roadmap_client: Any = None,
                  forum_writer: ForumWriter | None = None,
                  dry_run: bool = True, strict_config: bool = False,
-                 pace: float = 0.0) -> None:
+                 pace: float = 0.0, llm_client: Any = None) -> None:
         self.source = source
         self.context = context
         self.store = store
         self.roadmap_client = roadmap_client
         self.forum_writer = forum_writer if forum_writer is not None else RecordingForumWriter()
+        #: Optional. ``None`` means no summaries and no duplicate judging: the
+        #: token scorer stands alone, which is a supported state.
+        self.llm_client = llm_client
         self.dry_run = dry_run
         #: `[b5-config]`'s startup validation. On the live path the tag mapping
         #: is checked against the editor's own `vocab` and the forums' real
@@ -214,7 +218,17 @@ class SyncEngine:
         roadmap, forum = await self.source.snapshots()
         self.validate_config(roadmap, forum)
         view = self.view()
-        plans = plan_all(roadmap, forum, view, self.context)
+        # The one model call a cycle makes, and it happens HERE rather than in
+        # a planner: the planners are pure and synchronous, and the fixed-point
+        # tests depend on it. Only threads about to become ideas are asked
+        # about, so a quiet cycle costs nothing.
+        context = self.context
+        if self.llm_client is not None:
+            summaries = summarise_new_threads(roadmap, forum, view,
+                                              self.llm_client)
+            if summaries:
+                context = replace(context, summaries=summaries)
+        plans = plan_all(roadmap, forum, view, context)
         report = RunReport(dry_run=self.dry_run, reason=reason, plans=plans)
         report.aborted = any(p.aborted for p in plans)
 
@@ -681,6 +695,35 @@ async def _read_thread(thread: Any, channel_id: str,
     )
 
 
+def summarise_new_threads(roadmap: Snapshot, forum: ForumSnapshot, view: Any,
+                          client: Any) -> dict[str, str]:
+    """One summary per thread that is about to become an idea.
+
+    Runs BEFORE planning, which is the whole point: the planners are pure, and
+    a model call inside one would end that. Only unlinked threads are asked
+    about, so this costs nothing on a cycle with no new reports -- which is
+    most of them.
+
+    A model that cannot answer yields no entry, and the planner then uses the
+    reporter's own words. The bot never blocks on it.
+    """
+    if client is None:
+        return {}
+    out: dict[str, str] = {}
+    for thread in unlinked_threads(roadmap, forum, view):
+        body = thread.starter.content if thread.starter else ""
+        if not (body or "").strip():
+            continue
+        try:
+            summary = client.summarise(thread.title, body)
+        except Exception as exc:      # never fail a cycle over a summary
+            log.warning("no summary for thread %s: %s", thread.id, exc)
+            continue
+        if summary:
+            out[thread.id] = summary
+    return out
+
+
 async def rehost_images(forum: ForumSnapshot, store: Any, *,
                         fetch: Any = None) -> ForumSnapshot:
     """Copy every Discord image somewhere permanent; return an updated snapshot.
@@ -775,6 +818,7 @@ __all__ = [
     "EVENT_DEBOUNCE_SECONDS",
     "EventFunnel",
     "rehost_images",
+    "summarise_new_threads",
     "LiveSource",
     "RECONCILE_INTERVAL_SECONDS",
     "REVIEW_SAVE_CONFLICT",

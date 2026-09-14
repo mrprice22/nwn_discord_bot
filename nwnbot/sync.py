@@ -52,6 +52,7 @@ from nwnbot import config as cfg
 from nwnbot import dupes
 from nwnbot.config import MERIT_BY_TYPE
 from nwnbot.forum import ForumMessage, ForumSnapshot, ForumThread
+from nwnbot.render import md_to_html
 from nwnbot.roadmap import COMMENT_MAX_LEN, ForbiddenWrite, Snapshot
 from nwnbot.store import StoreView, content_hash
 
@@ -133,12 +134,21 @@ UNLIKELY_MESSAGE = (
 )
 
 #: Leads the opening post of a thread the bot opens from an existing roadmap
-#: item. [b8-backfill] will open one per open item, so without this a player
-#: meets a bot posting their own words back at them with no explanation.
-THREAD_HEADER = (
-    "Opened from the roadmap so it can be tracked and discussed here. "
-    "Replies on this thread reach the roadmap item."
-)
+#: item. [b8-backfill] opens one per open item, so this line gets read ~100
+#: times in a row by the same people: it has to carry information rather than
+#: explain the mechanism, which stops being news after the second thread.
+#: Attribution is the part that is actually useful and differs every time — it
+#: tells the reporter their report was kept, and everyone else whose it was.
+THREAD_HEADER = "Reported by: {player} on {date}."
+
+#: When the roadmap has no `player`. Rare — 178 of 179 open items have one —
+#: but "Reported by: ." would read worse than saying so.
+UNKNOWN_PLAYER = "an unmatched reporter"
+
+#: `date` is only filled in for shipped items, so roughly one open item in
+#: seven has none. Saying so is honest; inventing one, or dropping the clause,
+#: would both imply the date is known.
+UNKNOWN_DATE = "Unknown date"
 
 #: Opening post of a thread the bot creates from an existing roadmap item.
 #: ``body`` already carries THREAD_HEADER — see :func:`_plan_new_thread`, which
@@ -706,6 +716,11 @@ class PlanContext:
     #: Stamped onto every `dupe_candidates` row so a later model upgrade can
     #: tell which suggestions predate it. An input like every other setting.
     dupe_scorer: str = cfg.DUPE_SCORER_ID
+    #: thread id -> a one-paragraph summary for the new idea's `notes`.
+    #: Written by the model BEFORE planning, because a planner is pure and a
+    #: network call inside one would end that. Missing or empty simply means
+    #: the report's own words are used, which is never wrong -- only longer.
+    summaries: Mapping[str, str] = field(default_factory=dict)
     # [b8-backfill]. Who earns a Discord thread. An empty `staff_players` means
     # nobody is staff, so every open item qualifies — the pre-b8 behaviour, which
     # keeps every test written before this policy planning what it always did.
@@ -723,6 +738,7 @@ class PlanContext:
         object.__setattr__(self, "tag_groups", dict(self.tag_groups))
         object.__setattr__(self, "channel_types", dict(self.channel_types))
         object.__setattr__(self, "players", dict(self.players))
+        object.__setattr__(self, "summaries", dict(self.summaries))
         object.__setattr__(self, "staff_players", frozenset(self.staff_players))
         object.__setattr__(self, "staff_thread_statuses",
                            frozenset(self.staff_thread_statuses))
@@ -948,6 +964,25 @@ def plan_discord_to_roadmap(roadmap: Snapshot, forum: ForumSnapshot,
     return _cap(actions, ctx, "discord->roadmap")
 
 
+def unlinked_threads(roadmap: Snapshot, forum: ForumSnapshot,
+                     store: Any = None) -> list[ForumThread]:
+    """Threads with no roadmap idea yet — the ones a cycle would create from.
+
+    Public and pure so the engine can ask the model about exactly these, before
+    planning, without duplicating the link resolution or reaching into the
+    planner. An archived thread is excluded for the same reason
+    `_plan_new_idea` skips it: it is history, not an inbox.
+    """
+    view = _as_view(store)
+    out = []
+    for thread in forum.threads:
+        if thread.archived or thread.locked:
+            continue
+        if _linked_idea_id(thread, view, roadmap) is None:
+            out.append(thread)
+    return out
+
+
 def _review(actions: list[Action], view: StoreView, kind: str, subject: str,
             detail: str, **extra: Any) -> None:
     """Queue a question once. A review already in the store is not re-raised."""
@@ -1031,6 +1066,14 @@ def _plan_new_idea(actions: list[Action], thread: ForumThread, roadmap: Snapshot
     # Awaiting the admin's approval. Cleared in the editor, never here: the bot
     # can say "someone should look at this" and can never answer it.
     idea["triage"] = True
+    # The description the admin would otherwise write by hand from the thread.
+    # Falls back to the reporter's own words, which is the thing being
+    # described: using them verbatim is never wrong, only longer.
+    summary = (ctx.summaries.get(thread.id) or "").strip()
+    if not summary and thread.starter is not None:
+        summary = (thread.starter.content or "").strip()
+    if summary:
+        idea["notes"] = md_to_html(summary)
     if candidates:
         idea["dupe_candidates"] = [dict(c) for c in candidates]
     if dupe_of:  # [b9-dupes] only; b6 never sets this.
@@ -1447,7 +1490,10 @@ def _plan_new_thread(actions: list[Action], idea: Mapping[str, Any],
     body = html_to_md(idea.get("notes")) if idea.get("notes") else ""
     # The header leads, so it survives the 4000-char cut by construction, and an
     # item with no `notes` gets the header alone rather than a leading blank.
-    body = "\n\n".join(part for part in (THREAD_HEADER, body.strip()) if part)
+    header = THREAD_HEADER.format(
+        player=str(idea.get("player") or "").strip() or UNKNOWN_PLAYER,
+        date=str(idea.get("date") or "").strip() or UNKNOWN_DATE)
+    body = "\n\n".join(part for part in (header, body.strip()) if part)
     body = truncate_for_discord(THREAD_BODY.format(body=body, link=ctx._link(idea_id)),
                                 editor_url=ctx.idea_url(idea_id))
     actions.append(CreateThread(idea_id=idea_id, channel_id=channel_id,
@@ -1694,6 +1740,8 @@ __all__ = [
     "TERMINAL_STATUSES",
     "THREAD_BODY",
     "THREAD_HEADER",
+    "UNKNOWN_DATE",
+    "UNKNOWN_PLAYER",
     "UNLIKELY_MESSAGE",
     "UpdateIdeaField",
     "mint_idea_id",
@@ -1702,6 +1750,7 @@ __all__ = [
     "resolve_canonical",
     "shorten_id",
     "simulate",
+    "unlinked_threads",
     "slugify_id",
     "unique_idea_id",
 ]

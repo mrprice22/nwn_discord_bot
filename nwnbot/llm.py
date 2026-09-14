@@ -58,6 +58,21 @@ LINK_SYSTEM = (
     "DIFFERENT. Then one short sentence of reasoning."
 )
 
+#: Asked when a Discord report becomes a roadmap idea. The result goes into
+#: `notes`, which is the reporter-facing description the admin would otherwise
+#: write by hand from the thread -- so the instruction is to restate, not to
+#: interpret. A summary that adds a diagnosis the reporter did not give would
+#: put words in their mouth on a public roadmap.
+SUMMARY_SYSTEM = (
+    "You turn a player's bug report or feature request from a game Discord "
+    "into one short paragraph for a public roadmap. Rules: keep it to two or "
+    "three sentences; use plain past or present tense; keep every concrete "
+    "detail they gave (names, levels, items, places, numbers); do NOT guess at "
+    "causes, fixes or severity; do NOT add anything they did not say; do not "
+    "address the reader, and do not mention Discord or the report itself. "
+    "Reply with the paragraph and nothing else."
+)
+
 DEFAULT_BASE_URL = "http://127.0.0.1:8080"
 DEFAULT_TIMEOUT = 120.0
 DEFAULT_MAX_TOKENS = 100
@@ -171,6 +186,38 @@ class LlmClient:
                 f"B: {b_title}\n{(b_body or '')[:600]}")
         return self._ask(JUDGE_SYSTEM, user, "DUPLICATE")
 
+    def summarise(self, title: str, body: str) -> str:
+        """One paragraph of plain prose for an idea's ``notes``, or "".
+
+        Empty means no summary, and the caller then falls back to the report's
+        own words. That is a real fallback rather than a degraded one: the
+        reporter's text is the thing being described, so using it verbatim is
+        never wrong, only longer.
+        """
+        text = (body or "").strip()
+        if not text:
+            return ""
+        payload = {
+            "model": self.model,
+            "temperature": 0.2,
+            "max_tokens": 220,
+            "chat_template_kwargs": {"enable_thinking": False},
+            "messages": [{"role": "system", "content": SUMMARY_SYSTEM},
+                         {"role": "user",
+                          "content": f"Title: {title}\n\n{text[:2500]}"}],
+        }
+        try:
+            data = self._post("/v1/chat/completions", payload)
+        except LlmUnavailable as exc:
+            log.warning("no summary (%s); using the report's own words", exc)
+            return ""
+        try:
+            message = data["choices"][0]["message"]
+        except (KeyError, IndexError, TypeError):
+            return ""
+        out = (message.get("content") or message.get("reasoning_content") or "")
+        return " ".join(str(out).split())
+
     def judge_link(self, thread_title: str, thread_body: str,
                    idea_title: str, idea_body: str = "") -> Verdict | None:
         """Is this roadmap item already tracking this Discord thread?"""
@@ -198,5 +245,5 @@ def from_env(env: Mapping[str, str]) -> LlmClient | None:
                      timeout=float(env.get(cfg.ENV_LLM_TIMEOUT) or DEFAULT_TIMEOUT))
 
 
-__all__ = ["DEFAULT_BASE_URL", "DEFAULT_TIMEOUT", "JUDGE_SYSTEM", "LINK_SYSTEM",
+__all__ = ["SUMMARY_SYSTEM", "DEFAULT_BASE_URL", "DEFAULT_TIMEOUT", "JUDGE_SYSTEM", "LINK_SYSTEM",
            "LlmClient", "LlmUnavailable", "Verdict", "from_env"]

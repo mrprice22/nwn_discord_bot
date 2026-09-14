@@ -952,6 +952,13 @@ def _write_backfill(report: RunReport, context: PlanContext, path: str,
 # --------------------------------------------------------------------------
 # serve, and the live path — never exercised by the test suite
 # --------------------------------------------------------------------------
+def _llm_client(env: Mapping[str, str]):  # pragma: no cover - thin wiring
+    """The local model, or ``None``. Never fatal: see nwnbot.llm.from_env."""
+    from nwnbot import llm as _llm
+
+    return _llm.from_env(env)
+
+
 def _image_store(env: Mapping[str, str]):  # pragma: no cover - thin wiring
     """Where rehosted screenshots go, or ``None`` when R2 is not configured.
 
@@ -975,8 +982,10 @@ def _channel_types(env: Mapping[str, str]) -> dict[str, str]:
     return cfg.channel_types(env)
 
 
-def _live_context(args: argparse.Namespace,
-                  env: Mapping[str, str]) -> PlanContext:  # pragma: no cover
+def _live_context(args: argparse.Namespace, env: Mapping[str, str],
+                  summaries: Mapping[str, str] | None = None
+                  ) -> PlanContext:  # pragma: no cover
+    summaries = dict(summaries or {})
     mapping = load_tag_map(getattr(args, "tag_map", None))
     # Startup validation, structural half: the mapping against the 12 known
     # group ids. The other half — the mapping against the forums' real
@@ -992,6 +1001,7 @@ def _live_context(args: argparse.Namespace,
         bot_user_id=settings.discord_bot_user_id,
         action_cap=args.cap if args.cap is not None else DEFAULT_ACTION_CAP,
         only=frozenset(getattr(args, "only", None) or ()),
+        summaries=summaries,
         editor_url=(env.get(cfg.ENV_ROADMAP_BASE_URL) or "").rstrip("/"),
         thread_url_template=("https://discord.com/channels/"
                              f"{env.get(cfg.ENV_DISCORD_GUILD_ID, '')}/{{thread_id}}"),
@@ -1040,7 +1050,8 @@ def _live(args: argparse.Namespace, env: Mapping[str, str], out: Any, *,
                     source, context, store=view, roadmap_client=roadmap_client,
                     forum_writer=(DiscordForumWriter(client) if not dry_run
                                   else RecordingForumWriter()),
-                    dry_run=dry_run, strict_config=True)
+                    dry_run=dry_run, strict_config=True,
+                    llm_client=_llm_client(env))
                 return await engine.cycle(reason="cli")
             finally:
                 await client.close()

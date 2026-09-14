@@ -39,6 +39,8 @@ from nwnbot.sync import (
     REVIEW_UNKNOWN_STATUS,
     REVIEW_UNMAPPED_TAG,
     THREAD_HEADER,
+    UNKNOWN_DATE,
+    UNKNOWN_PLAYER,
     AppendComment,
     ArchiveThread,
     CreateIdea,
@@ -266,9 +268,46 @@ def test_new_thread_creates_a_hidden_idea_and_carries_the_first_post_over():
     assert created["type"] == "Defect"          # from the forum channel
     assert created["player"] == PLAYER          # from the identity map
     assert created["discord"]["thread_id"] == "t-1"
-    assert "notes" not in created and "merit_awarded" not in created
+    assert "merit_awarded" not in created
+    # `notes` is the reporter-facing description. With no model summary the
+    # report's own words are used, which is the thing being described.
+    assert "it broke" in created["notes"]
     assert plan[1].idea_id == "a-forge-thing"
     assert "it broke" in plan[1].text
+
+
+def test_a_model_summary_becomes_the_description():
+    ctx = _replace(CTX, summaries={"t-1": "The forge stopped accepting ore."})
+    plan = plan_discord_to_roadmap(
+        roadmap(), forum(thread(starter=msg(starter=True))), None, ctx)
+    assert "The forge stopped accepting ore." in plan[0].idea["notes"]
+    # The raw report still reaches the internal comment, so nothing is lost to
+    # a summary that turns out to have dropped something.
+    assert "it broke" in plan[1].text
+
+
+def test_the_description_is_the_editors_html_not_raw_text():
+    ctx = _replace(CTX, summaries={"t-1": "Ore is refused."})
+    plan = plan_discord_to_roadmap(
+        roadmap(), forum(thread(starter=msg(starter=True))), None, ctx)
+    assert plan[0].idea["notes"].startswith("<div>")
+
+
+def test_a_summary_for_another_thread_is_not_used():
+    ctx = _replace(CTX, summaries={"t-999": "Wrong thread."})
+    plan = plan_discord_to_roadmap(
+        roadmap(), forum(thread(starter=msg(starter=True))), None, ctx)
+    assert "Wrong thread" not in plan[0].idea["notes"]
+    assert "it broke" in plan[0].idea["notes"]
+
+
+def test_an_image_only_report_still_gets_an_idea_without_notes():
+    # content == "" and no summary: there is nothing to describe, and an empty
+    # `notes` is better than an empty <div>.
+    plan = plan_discord_to_roadmap(
+        roadmap(), forum(thread(starter=msg(content="", starter=True))), None, CTX)
+    created = [a for a in plan if isinstance(a, CreateIdea)][0].idea
+    assert "notes" not in created
 
 
 def test_new_idea_id_avoids_an_existing_one():
@@ -423,16 +462,40 @@ def test_a_bot_opened_thread_says_where_it_came_from():
     notes = "<div>Something is wrong with the forge.</div>"
     plan = plan_roadmap_to_discord(roadmap(idea(status="wip", notes=notes)),
                                    forum(), None, CTX)
-    assert plan[0].body.startswith(THREAD_HEADER)
+    # Attribution, not an explanation of the mechanism: a backfill posts this
+    # line once per thread to the same people, so it carries the one thing that
+    # differs each time.
+    assert plan[0].body.startswith(f"Reported by: {PLAYER} on ")
     assert "Something is wrong with the forge." in plan[0].body
 
 
 def test_the_header_stands_alone_when_the_item_has_no_notes():
     plan = plan_roadmap_to_discord(roadmap(idea(status="wip")), forum(), None, CTX)
     body = plan[0].body
-    assert body.startswith(THREAD_HEADER)
+    header = THREAD_HEADER.format(player=PLAYER, date=UNKNOWN_DATE)
     # No `notes` must not leave a blank gap between the header and the link.
-    assert body == THREAD_HEADER + "\n\n" + CTX.idea_url("forge-thing")
+    assert body == header + "\n\n" + CTX.idea_url("forge-thing")
+
+
+def test_the_header_names_the_reporter_and_the_date():
+    row = idea(status="wip", player="Tukwut", date="2026-07-16")
+    plan = plan_roadmap_to_discord(roadmap(row, players=("Tukwut",)), forum(),
+                                   None, CTX)
+    assert plan[0].body.startswith("Reported by: Tukwut on 2026-07-16.")
+
+
+def test_a_missing_date_says_so_rather_than_being_dropped():
+    # Roughly one open item in seven has no date; implying one is known would
+    # be worse than admitting it is not.
+    plan = plan_roadmap_to_discord(roadmap(idea(status="wip")), forum(), None, CTX)
+    assert f"on {UNKNOWN_DATE}." in plan[0].body
+
+
+def test_a_missing_player_says_so_too():
+    row = idea(status="wip")
+    row.pop("player")
+    plan = plan_roadmap_to_discord(roadmap(row), forum(), None, CTX)
+    assert f"Reported by: {UNKNOWN_PLAYER} on" in plan[0].body
 
 
 R2D_SKIP_CASES = [
