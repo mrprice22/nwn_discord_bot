@@ -2,6 +2,11 @@
 # Two-way sync between the Discord forums and the roadmap editor
 # (python -m nwnbot serve).
 #
+# NOTE (2026-09-13): the bot now runs on the Windows host, not this machine.
+# This unit is kept for the Linux box and as the reference for the intended
+# behaviour; the live runner is windows/nwnbot-task.xml + windows/run-nwnbot.ps1,
+# which mirror EnvironmentFile=, Restart=on-failure and the un-armed default.
+#
 # Deliberately NOT enabled by default and NOT started at boot. This unit is the
 # one thing in the repo that can write to a public player forum and to the
 # roadmap the admin uses daily, and neither has an undo. Arming it is a

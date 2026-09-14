@@ -71,7 +71,8 @@ and is superseded.
 - **Tests run from `.venv/`.** System Python is 3.14.7 and has `aiohttp`, `PyYAML` and
   `discord.py` but *not* `pytest`. The repo carries a gitignored `.venv`
   (`python -m venv --system-site-packages .venv`); run the suite as
-  `.venv/bin/python -m pytest -q`, not bare `python -m pytest`.
+  `.venv/bin/python -m pytest -q` (Windows: `.venv\Scripts\python -m pytest -q`), not
+  bare `python -m pytest`.
 - `$ROADMAP_AUTH_DB` overrides the account DB path — this is what makes a real end-to-end
   integration test possible against a throwaway editor instance.
 

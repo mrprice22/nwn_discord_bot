@@ -5,7 +5,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "/home/james/GIT/nwn_discord_bot/bin/autopilot-safety-commit pre-compact"
+            "command": "bash bin/autopilot-safety-commit pre-compact"
           }
         ]
       }
@@ -15,7 +15,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "/home/james/GIT/nwn_discord_bot/bin/autopilot-safety-commit session-end"
+            "command": "bash bin/autopilot-safety-commit session-end"
           }
         ]
       }

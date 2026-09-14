@@ -33,7 +33,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from dataclasses import dataclass, field
-from typing import Any, Iterable
+from typing import Any, Iterable, Mapping
 
 from nwnbot import config as cfg
 from nwnbot.forum import ForumSnapshot, ForumThread, ForumMessage, ForumWriter, RecordingForumWriter
@@ -561,18 +561,71 @@ async def build_forum_snapshot(client: Any, channel_ids: Iterable[str],
         channel = client.get_channel(int(channel_id))
         if channel is None:
             channel = await client.fetch_channel(int(channel_id))
-        available[str(channel_id)] = tuple(
-            t.name for t in getattr(channel, "available_tags", []) or [])
+        forum_tags = getattr(channel, "available_tags", []) or []
+        available[str(channel_id)] = tuple(t.name for t in forum_tags)
+        # Tag id -> name for this forum. `Thread.applied_tags` resolves ids
+        # through `thread.parent`, which is a *guild cache* lookup and so is
+        # None on the gateway-less `plan` path -- it then returns [] and every
+        # thread looks untagged, which reads as "no group" and files nothing.
+        # We already hold the forum channel here, so resolve them ourselves.
+        tag_names = {str(t.id): t.name for t in forum_tags}
         seen = list(getattr(channel, "threads", []) or [])
+        if not seen:
+            # `channel.threads` is the *gateway cache*, and the `plan` /
+            # `backfill` path deliberately logs in over HTTP with no gateway
+            # (cli.py:_live), so that cache is always empty there. Archived
+            # threads still arrive over REST below, but `_plan_new_idea` skips
+            # archived threads as history -- so without this fallback the whole
+            # Discord->roadmap direction silently plans nothing on the CLI
+            # path, which looks exactly like "already in sync".
+            seen = await _active_threads_via_rest(client, channel)
         async for archived in channel.archived_threads(limit=None):
             seen.append(archived)
         for thread in seen:
-            threads.append(await _read_thread(thread, str(channel_id)))
+            threads.append(await _read_thread(thread, str(channel_id), tag_names))
     return ForumSnapshot(tuple(threads), bot_user_id=str(bot_user_id or ""),
                          available_tags=available)
 
 
-async def _read_thread(thread: Any, channel_id: str
+def _applied_tag_names(thread: Any, tag_names: Mapping[str, str] | None
+                       ) -> tuple[str, ...]:  # pragma: no cover - needs a gateway
+    """The forum tags on a thread, by name.
+
+    `Thread.applied_tags` is preferred and is what runs under `serve`. It goes
+    through `thread.parent`, though, which is a guild-cache lookup, so on the
+    gateway-less `plan`/`backfill` path it yields nothing and the thread reads
+    as untagged. Falling back to the raw ids resolved against the forum channel
+    we already fetched keeps both paths agreeing, which is the property
+    `[b7-cli-runtime]` asserts about the event and poll paths.
+    """
+    names = tuple(t.name for t in getattr(thread, "applied_tags", None) or ())
+    if names or not tag_names:
+        return names
+    raw = getattr(thread, "_applied_tags", None) or ()
+    return tuple(tag_names[str(i)] for i in raw if str(i) in tag_names)
+
+
+async def _active_threads_via_rest(client: Any, channel: Any
+                                   ) -> list:  # pragma: no cover - needs a gateway
+    """The forum's open threads, fetched over REST rather than read from cache.
+
+    ``GET /guilds/{id}/threads/active`` is guild-wide, so the result is filtered
+    back down to this forum by ``parent_id``. Returns ``[]`` rather than raising
+    when the guild cannot be resolved: a forum we cannot enumerate is a reason
+    to plan nothing for it, not to abort the whole run.
+    """
+    guild = getattr(channel, "guild", None)
+    guild_id = getattr(guild, "id", None)
+    if guild_id is None:
+        return []
+    if not hasattr(guild, "active_threads"):
+        guild = await client.fetch_guild(guild_id)
+    return [t for t in await guild.active_threads()
+            if str(getattr(t, "parent_id", "")) == str(channel.id)]
+
+
+async def _read_thread(thread: Any, channel_id: str,
+                       tag_names: Mapping[str, str] | None = None,
                        ) -> ForumThread:  # pragma: no cover - needs a gateway
     messages = [m async for m in thread.history(limit=None, oldest_first=True)]
     starter = None
@@ -598,7 +651,7 @@ async def _read_thread(thread: Any, channel_id: str
         author_id=owner_id,
         author_name=starter.author_name if starter else "",
         created_at=thread.created_at.isoformat() if thread.created_at else "",
-        tag_names=tuple(t.name for t in getattr(thread, "applied_tags", []) or []),
+        tag_names=_applied_tag_names(thread, tag_names),
         archived=bool(getattr(thread, "archived", False)),
         locked=bool(getattr(thread, "locked", False)),
         starter=starter, messages=tuple(replies),

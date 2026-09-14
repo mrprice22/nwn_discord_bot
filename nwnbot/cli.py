@@ -776,6 +776,7 @@ def _live_context(args: argparse.Namespace,
         players=dict(players.ids),
         bot_user_id=settings.discord_bot_user_id,
         action_cap=args.cap if args.cap is not None else DEFAULT_ACTION_CAP,
+        only=frozenset(getattr(args, "only", None) or ()),
         editor_url=(env.get(cfg.ENV_ROADMAP_BASE_URL) or "").rstrip("/"),
         thread_url_template=("https://discord.com/channels/"
                              f"{env.get(cfg.ENV_DISCORD_GUILD_ID, '')}/{{thread_id}}"),
@@ -903,6 +904,12 @@ def build_parser() -> argparse.ArgumentParser:
         sub.add_argument("--cap", type=int, default=None, metavar="N",
                          help=f"per-run action cap (default {DEFAULT_ACTION_CAP}); "
                               "over it, the run aborts and reports")
+        sub.add_argument("--only", metavar="IDEA_ID", action="append", default=None,
+                         help="restrict the run to this roadmap idea id; repeat "
+                              "for several. Use it to try ONE item live and look "
+                              "at the result before running a batch — the cap "
+                              "aborts a big plan rather than trimming it, so it "
+                              "cannot do this on its own")
 
     doctor = subs.add_parser("doctor", help="check the environment and configuration")
     common(doctor)

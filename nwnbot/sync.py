@@ -668,6 +668,13 @@ class PlanContext:
     # keeps every test written before this policy planning what it always did.
     staff_players: frozenset[str] = frozenset()
     staff_thread_statuses: frozenset[str] = frozenset()
+    #: Restrict the run to these idea ids. Empty means "no restriction", which
+    #: is the normal case. This exists so a first live run can be one item
+    #: wide: the action cap ABORTS a plan rather than trimming it, so there is
+    #: otherwise no way to execute a single action out of a large plan, and
+    #: "just try one and look at it" is the only safe way to approach a batch
+    #: that posts to a player-facing forum with no undo.
+    only: frozenset[str] = frozenset()
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "tag_groups", dict(self.tag_groups))
@@ -676,6 +683,7 @@ class PlanContext:
         object.__setattr__(self, "staff_players", frozenset(self.staff_players))
         object.__setattr__(self, "staff_thread_statuses",
                            frozenset(self.staff_thread_statuses))
+        object.__setattr__(self, "only", frozenset(self.only or ()))
 
     def group_for_tags(self, tag_names: Iterable[str]) -> str | None:
         for name in tag_names:
@@ -813,6 +821,11 @@ def _thread_id_for_idea(idea: Mapping[str, Any], view: StoreView) -> str | None:
 def _cap(actions: list[Action], ctx: PlanContext, direction: str) -> Plan:
     """Loop-prevention layer three: report a runaway batch, never execute it."""
     cap = ctx.action_cap if ctx.action_cap is not None else DEFAULT_ACTION_CAP
+    if ctx.only:
+        # Narrow BEFORE the cap, so `--only` makes an over-cap plan executable
+        # rather than merely reporting a smaller abort. Both planners funnel
+        # through here, so one filter covers both directions.
+        actions = [a for a in actions if getattr(a, "idea_id", "") in ctx.only]
     writes = [a for a in actions if not isinstance(a, STATE_ONLY)]
     if cap >= 0 and len(writes) > cap:
         reason = (f"{len(writes)} actions planned, over the per-run cap of {cap}; "

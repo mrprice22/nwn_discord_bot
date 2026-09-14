@@ -1,4 +1,4 @@
-# Autopilot — unattended plan.md loop
+python# Autopilot — unattended plan.md loop
 
 Runbook for **autopilot mode** in this repo: an unattended Claude session that works the
 [plan.md](plan.md) backlog item by item until it runs out of items or compute. Start it with
@@ -79,7 +79,12 @@ Two rules specific to this repo:
 ### 3. Test
 
 ```
-python -m pytest -q
+# Linux:   .venv/bin/python -m pytest -q
+# Windows: .venv\Scripts\python -m pytest -q
+#
+# The bot now runs on a Windows host (see windows/README.md); this repo is
+# checked out on both. System Python carries aiohttp, PyYAML and discord.py but
+# NOT pytest, so a bare `python -m pytest` is not the same command.
 ```
 
 Must pass before shipping. On failure: fix and re-run; if unfixable, take the escape hatch.

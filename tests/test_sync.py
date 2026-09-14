@@ -1031,3 +1031,44 @@ def test_the_staff_status_set_is_the_soon_and_beyond_prefix():
     prefix = set(ORDER[:ORDER.index("soon") + 1]) - TERMINAL
     assert prefix == cfg.STAFF_THREAD_STATUSES
 
+# ==========================================================================
+# `only` — narrowing a run to one item, so a first live run can be one wide
+# ==========================================================================
+
+def _only_ctx(*ids, cap=25):
+    return PlanContext(tag_groups=CTX.tag_groups, channel_types=CTX.channel_types,
+                       players=CTX.players, bot_user_id=BOT, action_cap=cap,
+                       only=frozenset(ids))
+
+
+def test_only_narrows_the_plan_to_the_named_idea():
+    rows = [idea(f"thing-{i}", title=f"Thing number {i}", status="wip")
+            for i in range(5)]
+    plan = plan_roadmap_to_discord(roadmap(*rows), forum(), None,
+                                   _only_ctx("thing-3"))
+    assert [a.idea_id for a in plan.writes] == ["thing-3"]
+
+
+def test_only_makes_an_over_cap_plan_executable():
+    # 26 items is over the cap of 25 and aborts; narrowing to one must leave a
+    # plan that actually runs, which is the whole point of the flag.
+    rows = [idea(f"thing-{i}", title=f"Thing number {i}", status="wip")
+            for i in range(26)]
+    snap = roadmap(*rows)
+    assert plan_roadmap_to_discord(snap, forum(), None, CTX).aborted is True
+    narrowed = plan_roadmap_to_discord(snap, forum(), None, _only_ctx("thing-7"))
+    assert narrowed.aborted is False and narrowed.executable is True
+    assert len(narrowed.writes) == 1
+
+
+def test_only_applies_to_the_discord_to_roadmap_direction_too():
+    plan = plan_discord_to_roadmap(roadmap(), _many_threads(5), None,
+                                   _only_ctx("nothing-matches-this"))
+    assert plan.writes == ()
+
+
+def test_an_empty_only_is_no_restriction():
+    rows = [idea(f"thing-{i}", title=f"Thing number {i}", status="wip")
+            for i in range(3)]
+    plan = plan_roadmap_to_discord(roadmap(*rows), forum(), None, _only_ctx())
+    assert len(plan.writes) == 3

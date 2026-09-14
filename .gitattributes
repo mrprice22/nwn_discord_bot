@@ -1,0 +1,13 @@
+# The repo is now checked out on both the Linux box (192.168.1.191, where the
+# roadmap editor and the NWN server live) and the Windows host that actually
+# runs the bot. Git on the Windows side converts LF to CRLF on checkout, which
+# would make the shell script unrunnable ("bad interpreter: /usr/bin/env bash^M")
+# and quietly corrupt the systemd unit. Pin the files that only Linux executes.
+* text=auto
+
+bin/* text eol=lf
+*.service text eol=lf
+*.sh text eol=lf
+
+# Written and consumed by PowerShell on the Windows host.
+*.ps1 text eol=crlf
