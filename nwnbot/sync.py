@@ -67,10 +67,18 @@ STATUSES: tuple[str, ...] = (
 #: Statuses the bot must never *write* (`roadmap.FORBIDDEN_STATUSES`).
 ADMIN_ONLY_STATUSES = frozenset({"awarded", "implemented", "manual"})
 
-#: Fields the bot must never write. ``notes`` is the admin's player-facing
-#: release note; ``merit_awarded`` is the merit DB's own receipt.
-ADMIN_ONLY_FIELDS = frozenset({"notes", "notes_h", "impl_notes", "impl_notes_h",
-                               "merit_awarded"})
+#: Fields the bot must never write.
+#:
+#: ``impl_notes``/``impl_notes_h`` are the developer/implementation notes: the
+#: admin's own working record of HOW something was built, which nothing in a
+#: Discord thread can inform. ``merit_awarded`` is the merit DB's own receipt.
+#:
+#: ``notes`` was on this list until 2026-09-14 and is deliberately NOT any
+#: more. It is the reporter-facing description -- the field the admin fills by
+#: hand-copying the Discord thread into it, which is the very job this bot
+#: exists to take over -- and it is the only field whose HTML renders images.
+#: Blocking it was the wrong reading of "the admin's field".
+ADMIN_ONLY_FIELDS = frozenset({"impl_notes", "impl_notes_h", "merit_awarded"})
 
 #: Fields the bot may set when it *creates* an idea and may never change
 #: afterwards. ``type`` is the whole list, and the reason is review item

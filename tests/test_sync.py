@@ -189,20 +189,38 @@ def test_resolve_canonical_stops_at_a_dangling_pointer():
 # ==========================================================================
 
 FORBIDDEN_UPDATES = [
-    ("notes", "anything"),
-    ("notes_h", "anything"),
     ("impl_notes", "anything"),
+    ("impl_notes_h", "anything"),
     ("merit_awarded", True),
     ("status", "awarded"),
     ("status", "implemented"),
     ("status", "manual"),
 ]
 
+#: `notes` came OFF the forbidden list on 2026-09-14: it is the reporter-facing
+#: description the admin fills by hand-copying the thread, which is the job this
+#: bot exists to take over. The implementation notes stay the admin's alone.
+ALLOWED_NOW = [("notes", "<div>from Discord</div>"), ("notes_h", "anything")]
+
 
 @pytest.mark.parametrize("field_name,value", FORBIDDEN_UPDATES)
 def test_forbidden_field_cannot_be_planned(field_name, value):
     with pytest.raises(ForbiddenWrite):
         UpdateIdeaField(idea_id="x", field_name=field_name, value=value)
+
+
+@pytest.mark.parametrize("field_name,value", ALLOWED_NOW)
+def test_notes_is_writable_but_the_implementation_notes_are_not(field_name, value):
+    action = UpdateIdeaField(idea_id="x", field_name=field_name, value=value)
+    assert action.field_name == field_name
+
+
+def test_the_developer_notes_stay_off_limits():
+    # The distinction the whole change turns on: the description is the
+    # reporter's, the implementation notes are the admin's.
+    for blocked in ("impl_notes", "impl_notes_h"):
+        with pytest.raises(ForbiddenWrite):
+            UpdateIdeaField(idea_id="x", field_name=blocked, value="x")
 
 
 def test_allowed_update_is_fine():
@@ -212,7 +230,6 @@ def test_allowed_update_is_fine():
 
 FORBIDDEN_NEW_IDEAS = [
     {"id": "x", "hidden": True, "merit_awarded": True},
-    {"id": "x", "hidden": True, "notes": "<div>hi</div>"},
     {"id": "x", "hidden": True, "impl_notes": "hi"},
     {"id": "x", "hidden": True, "status": "awarded"},
     {"id": "x"},                                   # not hidden
