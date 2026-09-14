@@ -212,6 +212,32 @@ ATTACHMENT_LOST = "- ({filename} — not rehosted; see the thread, the Discord l
 #: Appended to a Discord-bound message as a link back to the item.
 LINK_SUFFIX = "\n\n{url}"
 
+#: Store field holding the LAST roadmap URL this thread was given.
+#:
+#: The link is worth saying once. Repeated under every status change it stops
+#: being a pointer and becomes furniture the reporter reads past -- and a
+#: thread can collect half a dozen of these over an idea's life.
+#:
+#: Storing the URL rather than a flag is what makes the exception work: if an
+#: idea's id changes, the URL changes, so the thread is told again -- and told
+#: in its own message rather than by a silent new link inside some unrelated
+#: update.
+LINK_FIELD = "link"
+
+#: Store field holding the last time this thread was given ITS OWN idea's
+#: address -- which is not the same question as LINK_FIELD.
+#:
+#: A duplicate's confirmation links to the CANONICAL idea, so LINK_FIELD can
+#: hold some other idea's URL entirely. Reading a move out of that comparison
+#: announced "this idea has moved" on every cycle of every duplicate thread.
+#: Only a change in the address we actually gave this thread for ITSELF is a
+#: move, and only this field records that.
+OWN_LINK_FIELD = "idea_link"
+
+#: Its own update, because a changed address is news by itself: anyone holding
+#: the old link is holding a dead one.
+RELINK_MESSAGE = "This idea has moved to a new address on the roadmap.{link}"
+
 #: PROVISIONAL WORDING — review item [r14].
 #: Posted once in a *new* thread whose report scored above DUPE_HIGH_THRESHOLD
 #: against an existing item. It is a **question, not a verdict**: the thread's
@@ -876,6 +902,41 @@ class PlanContext:
 # --------------------------------------------------------------------------
 # Small pure helpers
 # --------------------------------------------------------------------------
+def _link_once(actions: list[Action], view: StoreView, ctx: PlanContext,
+               idea_id: str, url: str = "") -> tuple[str, tuple[Action, ...]]:
+    """The link suffix if this thread has not been given this URL, plus the
+    baseline to record once it has actually been sent.
+
+    Returns ``("", ())`` when the thread already holds this link.
+
+    The baseline is handed BACK rather than appended so the caller can append
+    it after its message. Recording it first would mean a failure between the
+    two left the thread marked as holding a link it never saw -- and it would
+    then never be sent again. This order costs at worst one repeated link.
+
+    A thread with no stored URL gets one more link and then no more. That
+    covers every thread predating this rule without a special case and without
+    a mass re-link -- they have all seen a link already, and one more is not
+    worth a migration.
+    """
+    url = url or ctx.idea_url(idea_id)
+    if not url or view.unchanged(idea_id, LINK_FIELD, url):
+        return "", ()
+    # A second message in the SAME cycle must not repeat it either. `view` does
+    # not see this cycle's own baselines, so the plan is what we check.
+    if any(isinstance(a, RecordBaseline) and a.idea_id == idea_id
+           and a.field_name == LINK_FIELD and a.value == url for a in actions):
+        return "", ()
+    adopt = [RecordBaseline(idea_id=idea_id, field_name=LINK_FIELD, value=url,
+                            reason="link sent to the thread")]
+    # Only when the URL is this idea's own does it answer the "has it moved"
+    # question. A link to some other idea says nothing about this one's address.
+    if url == ctx.idea_url(idea_id):
+        adopt.append(RecordBaseline(idea_id=idea_id, field_name=OWN_LINK_FIELD,
+                                    value=url, reason="own address sent"))
+    return LINK_SUFFIX.format(url=url), tuple(adopt)
+
+
 def _as_view(store: Any) -> StoreView:
     """Accept a ``Store``, a ``StoreView`` or ``None``; always read-only here."""
     if store is None:
@@ -1360,10 +1421,13 @@ def _plan_dupe_hint(actions: list[Action], thread: ForumThread, idea_id: str,
         # where every candidate lands while `dupe_post_in_thread` is off, which
         # is the shipped default — see cfg.DUPE_POST_IN_THREAD for the numbers.
         return
-    text = DUPE_HINT_MESSAGE.format(title=best.title, link=ctx._link(best.idea_id))
+    link, adopt = _link_once(actions, view, ctx, idea_id,
+                             ctx.idea_url(best.idea_id))
+    text = DUPE_HINT_MESSAGE.format(title=best.title, link=link)
     actions.append(PostMessage(thread_id=thread.id, idea_id=idea_id, text=text,
                                kind="dupe_hint", field_name="dupe_hint",
                                value=best.idea_id))
+    actions.extend(adopt)
 
 
 def _plan_dupe_echo(actions: list[Action], thread: ForumThread, idea_id: str,
@@ -1401,10 +1465,13 @@ def _plan_confirmed_dupe(actions: list[Action], idea: Mapping[str, Any], idea_id
     target = roadmap.by_id.get(canonical) or {}
     title = str(target.get("title") or canonical)
 
-    text = DUPE_CONFIRMED_MESSAGE.format(title=title, link=ctx._link(canonical))
+    link, adopt = _link_once(actions, view, ctx, idea_id,
+                             ctx.idea_url(canonical))
+    text = DUPE_CONFIRMED_MESSAGE.format(title=title, link=link)
     actions.append(PostMessage(thread_id=thread.id, idea_id=idea_id, text=text,
                                kind="dupe_confirmed", field_name="dupe_of",
                                value=canonical))
+    actions.extend(adopt)
 
     url = thread.url or ctx.thread_url(thread.id)
     where = f" ({url})" if url else ""
@@ -1598,6 +1665,12 @@ def plan_roadmap_to_discord(roadmap: Snapshot, forum: ForumSnapshot,
             _plan_unlikely(actions, idea_id, thread, view, ctx)
             continue
 
+        # A moved address outranks the rest: every link this thread holds is
+        # dead until it is said, and the branches below would otherwise spend
+        # the cycle on news the reporter cannot follow.
+        if _plan_relink_post(actions, idea_id, thread, view, ctx):
+            continue
+
         # Approval comes before the status branch: an approved report is news
         # even when its status has not moved, and `planned` -> `planned` is
         # exactly what approval usually looks like.
@@ -1660,7 +1733,8 @@ def _plan_new_thread(actions: list[Action], idea: Mapping[str, Any],
         player=str(idea.get("player") or "").strip() or UNKNOWN_PLAYER,
         date=str(idea.get("date") or "").strip() or UNKNOWN_DATE)
     body = "\n\n".join(part for part in (header, body.strip()) if part)
-    body = truncate_for_discord(THREAD_BODY.format(body=body, link=ctx._link(idea_id)),
+    link, adopt = _link_once(actions, view, ctx, idea_id)
+    body = truncate_for_discord(THREAD_BODY.format(body=body, link=link),
                                 editor_url=ctx.idea_url(idea_id))
     actions.append(CreateThread(idea_id=idea_id, channel_id=channel_id,
                                 title=thread_title(str(idea.get("title") or idea_id)),
@@ -1677,10 +1751,14 @@ def _plan_merit_close(actions: list[Action], idea_id: str, thread: ForumThread,
     item_type = str(governing.get("type") or "")
     merit = MERIT_BY_TYPE.get(item_type, 0)
     if not view.unchanged(idea_id, "merit_awarded", canonical_id):
-        text = MERIT_MESSAGE.format(
-            merit=merit, points="point has" if merit == 1 else "points have",
-            type=item_type or "item", link=ctx._link(canonical_id))
         if not thread.archived:
+            # The link is resolved INSIDE this guard on purpose: _link_once
+            # records what it hands out, and an archived thread posts nothing.
+            link, adopt = _link_once(actions, view, ctx, idea_id,
+                                     ctx.idea_url(canonical_id))
+            text = MERIT_MESSAGE.format(
+                merit=merit, points="point has" if merit == 1 else "points have",
+                type=item_type or "item", link=link)
             # Posting REOPENS an archived thread in Discord. The admin closes a
             # thread when they move an idea between #bugs and #feature-requests
             # rather than deleting it, so a closed thread is a deliberate state
@@ -1691,6 +1769,7 @@ def _plan_merit_close(actions: list[Action], idea_id: str, thread: ForumThread,
                                        text=text, kind="merit",
                                        field_name="merit_awarded",
                                        value=canonical_id))
+            actions.extend(adopt)
     if not thread.archived:
         actions.append(ArchiveThread(thread_id=thread.id, idea_id=idea_id, locked=True,
                                      reason=f"merit awarded on {canonical_id}"))
@@ -1706,10 +1785,12 @@ def _plan_unlikely(actions: list[Action], idea_id: str, thread: ForumThread,
     """``unlikely`` => post and archive, deliberately **without** locking."""
     # Same reopening hazard as the merit path: never post into a closed thread.
     if not view.unchanged(idea_id, "status", "unlikely") and not thread.archived:
+        link, adopt = _link_once(actions, view, ctx, idea_id)
         actions.append(PostMessage(
             thread_id=thread.id, idea_id=idea_id,
-            text=UNLIKELY_MESSAGE.format(link=ctx._link(idea_id)),
+            text=UNLIKELY_MESSAGE.format(link=link),
             kind="unlikely", field_name="status", value="unlikely"))
+        actions.extend(adopt)
     if not thread.archived:
         actions.append(ArchiveThread(thread_id=thread.id, idea_id=idea_id, locked=False,
                                      reason="status: unlikely"))
@@ -1755,13 +1836,15 @@ def _plan_approved_post(actions: list[Action], idea_id: str, idea: Mapping[str, 
     if thread.archived:
         return False
     status = str(idea.get("status") or "")
+    link, adopt = _link_once(actions, view, ctx, idea_id)
     actions.append(PostMessage(
         thread_id=thread.id, idea_id=idea_id,
         text=APPROVED_MESSAGE.format(
             title=str(idea.get("title") or idea_id),
             outlook=APPROVED_OUTLOOK.get(status, APPROVED_OUTLOOK_DEFAULT),
-            link=ctx._link(idea_id)),
+            link=link),
         kind="approved", field_name="triage", value=pending))
+    actions.extend(adopt)
     # The approval message ALREADY said where it landed, so the status branch
     # must not say it again on the next cycle. It would have: approving into a
     # lane changes `status` too, and the baseline still holds whatever the idea
@@ -1774,6 +1857,39 @@ def _plan_approved_post(actions: list[Action], idea_id: str, idea: Mapping[str, 
     # blanket suppression.
     actions.append(RecordBaseline(idea_id=idea_id, field_name="status",
                                   value=status, reason="announced by approval"))
+    return True
+
+
+def _plan_relink_post(actions: list[Action], idea_id: str, thread: ForumThread,
+                      view: StoreView, ctx: PlanContext) -> bool:
+    """The idea's address changed: say so, with the new link.
+
+    An id is not supposed to move, but it does -- a rename in the editor, a
+    merge undone by hand. When it does, every link this thread was ever given
+    is dead, and the reporter has no way to find out except by clicking one.
+
+    This is deliberately its own message rather than letting the next status
+    update carry a quietly different link: "here is an update, and by the way
+    the address changed" buries the half that is actionable.
+
+    A thread with no stored URL is NOT a move. It is a thread that predates the
+    link rule, and there are over a hundred of them; announcing a move to all
+    of them would be the loudest possible way to ship a quiet feature. They
+    adopt through _link_once instead, on their next real message.
+    """
+    url = ctx.idea_url(idea_id)
+    if not url or view.unchanged(idea_id, OWN_LINK_FIELD, url):
+        return False
+    if not view.seen(idea_id, OWN_LINK_FIELD):
+        return False
+    if thread.archived:
+        return False
+    link, adopt = _link_once(actions, view, ctx, idea_id, url)
+    actions.append(PostMessage(
+        thread_id=thread.id, idea_id=idea_id,
+        text=RELINK_MESSAGE.format(link=link),
+        kind="relink", field_name="relink", value=url))
+    actions.extend(adopt)
     return True
 
 
@@ -1794,13 +1910,15 @@ def _plan_status_post(actions: list[Action], idea_id: str, idea: Mapping[str, An
         return
     if thread.archived:
         return  # never post into an archived thread; reopening is the admin's call
+    link, adopt = _link_once(actions, view, ctx, idea_id)
     actions.append(PostMessage(
         thread_id=thread.id, idea_id=idea_id,
         text=STATUS_MESSAGE.format(
             outlook=STATUS_OUTLOOK.get(
                 status, APPROVED_OUTLOOK.get(status, APPROVED_OUTLOOK_DEFAULT)),
-            link=ctx._link(idea_id)),
+            link=link),
         kind="status", field_name="status", value=status))
+    actions.extend(adopt)
 
 
 # --------------------------------------------------------------------------

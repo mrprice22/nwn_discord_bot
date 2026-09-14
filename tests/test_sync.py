@@ -112,6 +112,24 @@ def kinds(plan: Plan) -> list[str]:
     return [type(a).__name__ for a in plan]
 
 
+def only(plan: Plan, kind):
+    """The single action of this type in the plan."""
+    found = [a for a in plan if isinstance(a, kind)]
+    assert len(found) == 1, f"expected one {kind.__name__}, got {len(found)}"
+    return found[0]
+
+
+def doing(plan: Plan) -> list[str]:
+    """`kinds`, minus the bookkeeping baselines.
+
+    For tests about what the bot DOES -- post, then archive. Adopting the link
+    it just sent is a store write that rides along with most messages, and
+    spelling it out in every such test would bury the sequence under it. The
+    baselines get their own tests below, where they are the subject.
+    """
+    return [k for k in kinds(plan) if k != "RecordBaseline"]
+
+
 def review_kinds(plan: Plan) -> list[str]:
     return [a.kind for a in plan.reviews]
 
@@ -516,7 +534,7 @@ def test_status_change_posts_in_the_thread():
     row = idea(status="wip", discord={"thread_id": "t-1"})
     view = StoreView(hashes={("forge-thing", "status"): content_hash("planned")})
     plan = plan_roadmap_to_discord(roadmap(row), forum(thread()), view, CTX)
-    assert kinds(plan) == ["PostMessage"]
+    assert doing(plan) == ["PostMessage"]
     # The message says what the move MEANS, not the status id -- "this is now
     # **later** (later)" was the version that named the lane twice.
     assert plan[0].kind == "status"
@@ -543,10 +561,11 @@ def test_an_unchanged_status_posts_nothing():
 def test_merit_awarded_posts_then_archives_and_locks():
     row = idea(status="awarded", merit_awarded=True, discord={"thread_id": "t-1"})
     plan = plan_roadmap_to_discord(roadmap(row), forum(thread()), None, CTX)
-    assert kinds(plan) == ["PostMessage", "ArchiveThread"]
-    assert plan[0].kind == "merit"
-    assert "1 merit" in plan[0].text                # Defect is worth 1
-    assert plan[1].locked is True
+    assert doing(plan) == ["PostMessage", "ArchiveThread"]
+    post, = posts(plan)
+    assert post.kind == "merit"
+    assert "1 merit" in post.text                   # Defect is worth 1
+    assert only(plan, ArchiveThread).locked is True
 
 
 def test_merit_message_counts_by_type():
@@ -559,8 +578,8 @@ def test_merit_message_counts_by_type():
 def test_unlikely_posts_and_archives_without_locking():
     row = idea(status="unlikely", discord={"thread_id": "t-1"})
     plan = plan_roadmap_to_discord(roadmap(row), forum(thread()), None, CTX)
-    assert kinds(plan) == ["PostMessage", "ArchiveThread"]
-    assert plan[1].locked is False
+    assert doing(plan) == ["PostMessage", "ArchiveThread"]
+    assert only(plan, ArchiveThread).locked is False
 
 
 def test_the_close_path_follows_dupe_of_to_the_governing_item():
@@ -570,7 +589,7 @@ def test_the_close_path_follows_dupe_of_to_the_governing_item():
                 discord={"thread_id": "t-1"})
     plan = plan_roadmap_to_discord(roadmap(canonical, dupe), forum(thread()),
                                    None, CTX)
-    assert kinds(plan) == ["PostMessage", "ArchiveThread"]
+    assert doing(plan) == ["PostMessage", "ArchiveThread"]
     assert plan[0].idea_id == "dupe-row"          # posted in the dupe's own thread
     assert plan[0].value == "canonical"           # but merit came from the canonical
     assert "2 merit" in plan[0].text              # ...and from the canonical's type
@@ -997,8 +1016,9 @@ def confirmed(**kw):
 
 def test_a_confirmed_duplicate_tells_the_reporter_and_notes_the_canonical():
     plan = _r2d(roadmap(CANONICAL, confirmed()), forum(thread()), None, CTX)
-    assert kinds(plan) == ["PostMessage", "AppendComment"]
-    post, comment = plan.actions
+    assert doing(plan) == ["PostMessage", "AppendComment"]
+    post, = posts(plan)
+    comment = only(plan, AppendComment)
     assert post.kind == "dupe_confirmed"
     assert CANONICAL["title"] in post.text
     assert comment.idea_id == "canonical-item", "the demand lands on the canonical"
@@ -1024,7 +1044,7 @@ def test_a_confirmation_is_not_announced_when_the_thread_is_about_to_close():
     awarded = idea("canonical-item", title="Bank tab order resets", group="forge",
                    status="planned", type="Defect", hidden=True, merit_awarded=True)
     plan = _r2d(roadmap(awarded, confirmed()), forum(thread()), None, CTX)
-    assert kinds(plan) == ["PostMessage", "ArchiveThread"]
+    assert doing(plan) == ["PostMessage", "ArchiveThread"]
     assert plan.actions[0].kind == "merit"
 
 
@@ -1708,3 +1728,91 @@ def test_a_move_out_of_the_approved_lane_still_posts():
     posted = posts(plan)
     assert len(posted) == 1 and posted[0].kind == "status"
     assert "scheduled to be done soon" in posted[0].text
+
+
+# ==========================================================================
+# The roadmap link is said once per thread — and again only if it moves.
+# ==========================================================================
+from nwnbot.sync import (LINK_FIELD, OWN_LINK_FIELD,  # noqa: E402
+                         RELINK_MESSAGE)
+
+
+def _linked(idea_id="forge-thing"):
+    return f"https://roadmap.invalid#idea-{idea_id}"
+
+
+def test_the_first_message_in_a_thread_carries_the_link():
+    row = idea(status="later", discord={"thread_id": "t-1"})
+    plan = _plan(row, _view(triage=True, status="later"))
+    assert _linked() in posts(plan)[0].text
+
+
+def test_the_next_message_does_not_repeat_it():
+    # The whole point: a thread can collect half a dozen of these, and the
+    # link stops being a pointer once it is under every one of them.
+    row = idea(status="soon", discord={"thread_id": "t-1"})
+    view = _view(triage=False, status="later")
+    view.hashes[("forge-thing", LINK_FIELD)] = content_hash(_linked())
+    plan = _plan(row, view)
+    posted = posts(plan)
+    assert len(posted) == 1
+    assert "https://" not in posted[0].text
+
+
+def test_sending_the_link_is_what_records_it():
+    row = idea(status="later", discord={"thread_id": "t-1"})
+    plan = _plan(row, _view(triage=True, status="later"))
+    adopted = {(a.field_name, a.value) for a in plan
+               if isinstance(a, RecordBaseline)}
+    assert (LINK_FIELD, _linked()) in adopted
+    assert (OWN_LINK_FIELD, _linked()) in adopted
+
+
+def test_the_link_is_recorded_after_the_message_that_carries_it():
+    """Order matters: a failure between the two must not lose the link.
+
+    Recording first and failing to post would mark the thread as holding a
+    link it never saw, and it would never be sent again. This way round the
+    worst case is one repeated link.
+    """
+    row = idea(status="later", discord={"thread_id": "t-1"})
+    plan = list(_plan(row, _view(triage=True, status="later")))
+    post_at = next(i for i, a in enumerate(plan) if isinstance(a, PostMessage))
+    link_at = next(i for i, a in enumerate(plan)
+                   if isinstance(a, RecordBaseline) and a.field_name == LINK_FIELD)
+    assert post_at < link_at
+
+
+def test_a_moved_idea_gets_its_own_message_with_the_new_link():
+    row = idea(status="later", discord={"thread_id": "t-1"})
+    view = _view(triage=False, status="later")
+    view.hashes[("forge-thing", LINK_FIELD)] = content_hash(_linked("old-id"))
+    view.hashes[("forge-thing", OWN_LINK_FIELD)] = content_hash(_linked("old-id"))
+    posted = posts(_plan(row, view))
+    assert len(posted) == 1 and posted[0].kind == "relink"
+    assert posted[0].text == RELINK_MESSAGE.format(link="\n\n" + _linked())
+
+
+def test_a_thread_that_predates_the_rule_is_not_told_it_moved():
+    """The quiet-adoption trap, again.
+
+    Over a hundred threads have no stored link. Reading "no record" as "the
+    address changed" would announce a move in every one of them at once.
+    """
+    row = idea(status="later", discord={"thread_id": "t-1"})
+    plan = _plan(row, _view(triage=False, status="later"))
+    assert [a for a in plan if isinstance(a, PostMessage)] == []
+
+
+def test_a_duplicates_link_to_the_canonical_is_not_read_as_a_move():
+    """Caught by the fixed-point test, and worth its own name.
+
+    A duplicate's confirmation links to the CANONICAL idea. Recording that as
+    this thread's own address made the next cycle compare it against the
+    idea's real URL, see a difference, and announce a move that never happened
+    — on every cycle, forever.
+    """
+    world = roadmap(CANONICAL, confirmed())
+    first = _r2d(world, forum(thread()), None, CTX)
+    view = simulate(first, world, forum(thread()), StoreView.empty(), CTX)[2]
+    assert _r2d(world, forum(thread()), view, CTX).writes == ()
