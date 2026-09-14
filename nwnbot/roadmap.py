@@ -301,6 +301,15 @@ def assert_ideas_writable(baseline: Mapping[str, dict], ideas: Sequence[dict]) -
                 f"Promoting a Defect to an Exploit is the admin's call and the "
                 f"bot must never revert it")
 
+        # Approval. Clearing `triage` is the admin saying yes; the bot marks a
+        # report as awaiting an answer and must never supply one. Refused on
+        # the wire as well as at planning time, for the same reason as `type`:
+        # the planner's refusal is the first layer, not the only one.
+        if old is not None and "triage" in old and not _is_true(idea.get("triage"))                 and _is_true(old.get("triage")):
+            raise ForbiddenWrite(
+                f"'{iid}': refusing to clear triage — approving an idea is the "
+                f"admin's decision, made in the editor")
+
         # Never touch a top-level document block by smuggling it onto an idea.
         for name in FORBIDDEN_BLOCKS:
             if name in idea and name not in (old or {}):

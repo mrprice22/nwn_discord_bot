@@ -181,9 +181,18 @@ DUPE_HINT_MESSAGE = (
 #: Says plainly that the thread stays open and the credit stays with the
 #: reporter, because "duplicate" reads like "dismissed" everywhere else.
 DUPE_CONFIRMED_MESSAGE = (
-    "Confirmed as the same issue as **{title}**, which is where it will be "
-    "tracked from here. This thread stays open and your report still counts "
-    "towards merit.{link}"
+    "Tracked as the same issue as **{title}**, which is where updates will "
+    "appear — you are credited as a requester there. Merit for the fix goes to "
+    "the original report, but you can still earn merit by helping test it when "
+    "it ships.{link}"
+)
+
+#: Posted once when the admin approves a report and it joins the published
+#: roadmap. The reporter has heard nothing since they filed it, so this is the
+#: first news they get: it happened, and updates will follow here.
+APPROVED_MESSAGE = (
+    "Added to the roadmap: **{title}**. Thanks for reporting it — you will get "
+    "an update here as it moves.{link}"
 )
 
 #: The internal note left on the *canonical* item when a duplicate is confirmed,
@@ -360,7 +369,7 @@ class CreateIdea(Action):
 
     def effects(self) -> Effects:
         hashes = {(self.idea_id, f): self.idea.get(f)
-                  for f in ("title", "group", "status", "type")}
+                  for f in ("title", "group", "status", "type", "triage")}
         links = ({self.thread_id: (self.idea_id, self.channel_id)}
                  if self.thread_id else {})
         return Effects(links=links, hashes=hashes)
@@ -457,6 +466,7 @@ class CreateThread(Action):
     body: str = ""
     tag_names: tuple[str, ...] = ()
     status: str = ""
+    triage: bool = False
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "tag_names", tuple(self.tag_names))
@@ -469,8 +479,12 @@ class CreateThread(Action):
         # No link yet: the thread id only exists once Discord has answered, so
         # the executor links it (and checkpoints it into the idea's `discord`
         # field) at that point. Recording the status baseline here stops the
-        # very next run announcing a status nobody changed.
-        return Effects(hashes={(self.idea_id, "status"): self.status})
+        # very next run announcing a status nobody changed. `triage` is
+        # baselined for exactly the same reason: the bot has now SEEN this
+        # idea's approval state, so a later cycle must not read the absence of
+        # a hash as "it was just approved".
+        return Effects(hashes={(self.idea_id, "status"): self.status,
+                               (self.idea_id, "triage"): self.triage})
 
     def describe(self) -> str:
         return (f"create thread for {self.idea_id!r} in {self.channel_id} "
@@ -1008,6 +1022,9 @@ def _plan_new_idea(actions: list[Action], thread: ForumThread, roadmap: Snapshot
             "url": thread.url or ctx.thread_url(thread.id),
         },
     }
+    # Awaiting the admin's approval. Cleared in the editor, never here: the bot
+    # can say "someone should look at this" and can never answer it.
+    idea["triage"] = True
     if dupe_of:  # [b9-dupes] only; b6 never sets this.
         idea["dupe_of"] = dupe_of
     actions.append(CreateIdea(idea=idea, thread_id=thread.id,
@@ -1334,6 +1351,12 @@ def plan_roadmap_to_discord(roadmap: Snapshot, forum: ForumSnapshot,
             _plan_unlikely(actions, idea_id, thread, view, ctx)
             continue
 
+        # Approval comes before the status branch: an approved report is news
+        # even when its status has not moved, and `planned` -> `planned` is
+        # exactly what approval usually looks like.
+        if _plan_approved_post(actions, idea_id, idea, thread, view, ctx):
+            continue
+
         _plan_status_post(actions, idea_id, idea, thread, view, ctx)
 
     return _cap(actions, ctx, "roadmap->discord")
@@ -1391,7 +1414,8 @@ def _plan_new_thread(actions: list[Action], idea: Mapping[str, Any],
                                 editor_url=ctx.idea_url(idea_id))
     actions.append(CreateThread(idea_id=idea_id, channel_id=channel_id,
                                 title=str(idea.get("title") or idea_id), body=body,
-                                tag_names=tags, status=status))
+                                tag_names=tags, status=status,
+                                triage=_is_true(idea.get("triage"))))
 
 
 def _plan_merit_close(actions: list[Action], idea_id: str, thread: ForumThread,
@@ -1424,6 +1448,53 @@ def _plan_unlikely(actions: list[Action], idea_id: str, thread: ForumThread,
     if not thread.archived:
         actions.append(ArchiveThread(thread_id=thread.id, idea_id=idea_id, locked=False,
                                      reason="status: unlikely"))
+
+
+def _plan_approved_post(actions: list[Action], idea_id: str, idea: Mapping[str, Any],
+                        thread: ForumThread, view: StoreView,
+                        ctx: PlanContext) -> bool:
+    """Say so, once, when a pending report is approved onto the roadmap.
+
+    Returns True when this cycle planned something, so the caller lets the
+    status branch run on every other cycle.
+
+    Absence of `triage` is ambiguous on its own -- the editor drops a false
+    boolean, so "approved" and "never in the queue" look identical in the YAML.
+    The store is what separates them: an idea whose pending state was recorded
+    as True and is now absent has been approved; an idea never recorded at all
+    never entered the queue, and gets neither a message nor a stored row.
+
+    That second case is load-bearing. Without it the first run after this ships
+    would find no `triage` hash for any of the ~420 existing ideas, read every
+    one as freshly approved, and post into every thread at once.
+    """
+    pending = _is_true(idea.get("triage"))
+    if view.unchanged(idea_id, "triage", pending):
+        return False
+    if not view.seen(idea_id, "triage"):
+        if not pending:
+            # Never been in the queue: an idea that predates it, or one the
+            # admin wrote by hand. Not approved -- simply never pending. Say
+            # nothing and store nothing, so this does not stamp a baseline row
+            # onto all four hundred existing ideas the first time it runs.
+            return False
+        actions.append(RecordBaseline(idea_id=idea_id, field_name="triage",
+                                      value=pending))
+        return True
+    if pending:
+        # Went back INTO the queue. The admin's business; the reporter does not
+        # need to hear that their approved idea was un-approved.
+        actions.append(RecordBaseline(idea_id=idea_id, field_name="triage",
+                                      value=pending, reason="returned to triage"))
+        return True
+    if thread.archived:
+        return False
+    actions.append(PostMessage(
+        thread_id=thread.id, idea_id=idea_id,
+        text=APPROVED_MESSAGE.format(title=str(idea.get("title") or idea_id),
+                                     link=ctx._link(idea_id)),
+        kind="approved", field_name="triage", value=pending))
+    return True
 
 
 def _plan_status_post(actions: list[Action], idea_id: str, idea: Mapping[str, Any],
@@ -1530,6 +1601,7 @@ def simulate(plan: Plan, roadmap: Snapshot, forum: ForumSnapshot,
 
 __all__ = [
     "ADMIN_ONLY_FIELDS",
+    "APPROVED_MESSAGE",
     "CREATION_ONLY_FIELDS",
     "ADMIN_ONLY_STATUSES",
     "Action",

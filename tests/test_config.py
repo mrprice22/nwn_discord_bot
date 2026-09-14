@@ -174,7 +174,7 @@ def test_forum_decides_the_type_and_exploit_is_not_on_the_menu():
     assert "Exploit" not in cfg.BOT_WRITABLE_TYPES
     # Exploit still exists and is still worth 3 — the admin sets it by hand.
     assert cfg.MERIT_BY_TYPE["Exploit"] == 3
-    assert cfg.CREATION_ONLY_FIELDS == {"type"}
+    assert cfg.CREATION_ONLY_FIELDS == {"type", "triage"}
 
 
 # --------------------------------------------------------------------------

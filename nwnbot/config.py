@@ -139,9 +139,16 @@ FEATURES_ITEM_TYPE = "Enhancement"
 BOT_WRITABLE_TYPES: frozenset[str] = frozenset({BUGS_ITEM_TYPE, FEATURES_ITEM_TYPE})
 
 #: Fields that may be written when an idea is *created* and never updated
-#: afterwards. ``type`` is the whole list and the reason is ``[r3]``: the admin
-#: promotes an exploit by hand, and an update would revert it.
-CREATION_ONLY_FIELDS: frozenset[str] = frozenset({"type"})
+#: afterwards.
+#:
+#: ``type`` is here because of ``[r3]``: the admin promotes an exploit by hand,
+#: and an update would revert it.
+#:
+#: ``triage`` is here because clearing it IS the approval, and the approval is
+#: the admin's. The bot marks a new report as awaiting one and must never be
+#: able to decide the answer -- including by accident, which is why this is a
+#: construction-time refusal rather than a convention.
+CREATION_ONLY_FIELDS: frozenset[str] = frozenset({"type", "triage"})
 
 # --------------------------------------------------------------------------
 # Duplicate detection — [b9-dupes], answered by review item [r6]

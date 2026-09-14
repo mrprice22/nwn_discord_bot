@@ -719,8 +719,12 @@ def test_type_cannot_be_updated_on_an_existing_idea():
         UpdateIdeaField(idea_id="forge-thing", field_name="type", value="Defect")
 
 
-def test_creation_only_fields_is_exactly_type():
-    assert CREATION_ONLY_FIELDS == frozenset({"type"})
+def test_creation_only_fields_is_exactly_type_and_triage():
+    # Pinned as an exact set on purpose: a field added here silently stops
+    # being updatable, and one removed silently becomes updatable. Both
+    # entries are decisions the bot must never make for the admin -- promoting
+    # a Defect to an Exploit ([r3]), and approving a report.
+    assert CREATION_ONLY_FIELDS == frozenset({"type", "triage"})
 
 
 #: Every shape the Discord -> roadmap planner can meet with an already-linked
@@ -1223,3 +1227,102 @@ def test_an_image_only_message_still_produces_a_comment():
         None, CTX)
     comments = [a for a in plan if a.__class__.__name__ == "AppendComment"]
     assert comments and "https://img/a.webp" in comments[0].text
+
+
+# ==========================================================================
+# Approval: the reporter hears, once, that their report is on the roadmap.
+# ==========================================================================
+from nwnbot.sync import APPROVED_MESSAGE  # noqa: E402
+
+LINKED = StoreView(links={"t-1": "forge-thing"})
+
+
+def _view(**hashes):
+    return StoreView(links={"t-1": "forge-thing"},
+                     hashes={("forge-thing", k): content_hash(v)
+                             for k, v in hashes.items()})
+
+
+def _plan(row, view):
+    return plan_roadmap_to_discord(roadmap(row), forum(thread()), view, CTX)
+
+
+def posts(plan):
+    return [a for a in plan if isinstance(a, PostMessage)]
+
+
+def baselines(plan):
+    return [a for a in plan if isinstance(a, RecordBaseline)]
+
+
+def test_approving_a_pending_idea_posts_once():
+    # Seen as pending, now approved: that is the news.
+    plan = _plan(idea(discord={"thread_id": "t-1"}),
+                 _view(triage=True, status="planned"))
+    assert len(posts(plan)) == 1
+    assert "Added to the roadmap" in posts(plan)[0].text
+    assert "A forge thing" in posts(plan)[0].text
+
+
+def test_the_same_approval_is_not_announced_twice():
+    row = idea(discord={"thread_id": "t-1"})
+    view = _view(triage=True, status="planned")
+    first = _plan(row, view)
+    snap2, forum2, view2 = simulate(first, roadmap(row), forum(thread()), view, CTX)
+    assert plan_roadmap_to_discord(snap2, forum2, view2, CTX) == []
+
+
+def test_a_still_pending_idea_says_nothing():
+    plan = _plan(idea(triage=True, discord={"thread_id": "t-1"}),
+                 _view(triage=True, status="planned"))
+    assert posts(plan) == []
+
+
+def test_the_first_sighting_of_a_pending_idea_is_baselined_not_announced():
+    plan = _plan(idea(triage=True, discord={"thread_id": "t-1"}), LINKED)
+    assert posts(plan) == []
+    assert [b.field_name for b in baselines(plan)] == ["triage"]
+
+
+def test_an_idea_that_was_never_pending_is_left_entirely_alone():
+    # THE trap: ~420 existing ideas have no `triage` and no stored hash. Read
+    # naively, every one of them looks freshly approved. Nothing may be posted,
+    # and no baseline row may be written for them either.
+    plan = _plan(idea(discord={"thread_id": "t-1"}), LINKED)
+    assert posts(plan) == []
+    assert [b for b in baselines(plan) if b.field_name == "triage"] == []
+
+
+def test_returning_an_idea_to_the_queue_is_silent():
+    # The admin un-approving something is their business, not the reporter's.
+    plan = _plan(idea(triage=True, discord={"thread_id": "t-1"}),
+                 _view(triage=False, status="planned"))
+    assert posts(plan) == []
+    assert [b.field_name for b in baselines(plan)] == ["triage"]
+
+
+def test_nothing_is_posted_into_an_archived_thread_on_approval():
+    plan = plan_roadmap_to_discord(
+        roadmap(idea(discord={"thread_id": "t-1"})),
+        forum(thread(archived=True)), _view(triage=True, status="planned"), CTX)
+    assert posts(plan) == []
+
+
+def test_approval_beats_the_status_branch_on_the_same_cycle():
+    # Approval usually looks like planned -> planned, so a status-only check
+    # would miss it; and when both change, the approval is the bigger news.
+    plan = _plan(idea(status="wip", discord={"thread_id": "t-1"}),
+                 _view(triage=True, status="planned"))
+    assert len(posts(plan)) == 1
+    assert "Added to the roadmap" in posts(plan)[0].text
+
+
+def test_the_duplicate_message_does_not_promise_merit_to_the_reporter():
+    # A dupe row is never marked merit_awarded, so its player is never paid --
+    # _merit_write pays idea["player"], once per row. The message must not
+    # imply otherwise, and must point at the way they CAN earn merit.
+    from nwnbot.sync import DUPE_CONFIRMED_MESSAGE
+    text = DUPE_CONFIRMED_MESSAGE.format(title="X", link="")
+    assert "still counts towards merit" not in text
+    assert "credited as a requester" in text
+    assert "helping test it" in text
