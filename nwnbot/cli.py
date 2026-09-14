@@ -1225,7 +1225,14 @@ def main(argv: Sequence[str] | None = None, *,
     env = os.environ if env is None else env
     out = sys.stdout if out is None else out
     args = build_parser().parse_args(list(argv) if argv is not None else None)
-    if args.db is None and args.command != "plan" and args.command != "backfill":
+    if args.db is None:
+        # `plan` and `backfill` resolve this too. They were once excluded to
+        # keep them from CREATING a database, but read_only_view already
+        # refuses to: it returns an empty view for a path that does not exist.
+        # Excluding them only stopped them READING an existing store, which
+        # made `plan` report actions `apply` would skip -- baselines already
+        # recorded, comments already carried over. A preview that overstates
+        # what will happen is worse than no preview.
         args.db = env.get(cfg.ENV_NWNBOT_DB) or cfg.DEFAULT_DB_PATH
     if getattr(args, "players", None) is None:
         args.players = env.get(cfg.ENV_NWNBOT_PLAYERS) or cfg.DEFAULT_PLAYERS_PATH
