@@ -1467,9 +1467,17 @@ def _plan_merit_close(actions: list[Action], idea_id: str, thread: ForumThread,
         text = MERIT_MESSAGE.format(
             merit=merit, points="point has" if merit == 1 else "points have",
             type=item_type or "item", link=ctx._link(canonical_id))
-        actions.append(PostMessage(thread_id=thread.id, idea_id=idea_id, text=text,
-                                   kind="merit", field_name="merit_awarded",
-                                   value=canonical_id))
+        if not thread.archived:
+            # Posting REOPENS an archived thread in Discord. The admin closes a
+            # thread when they move an idea between #bugs and #feature-requests
+            # rather than deleting it, so a closed thread is a deliberate state
+            # and often the OLD half of a pair. Announcing merit into one would
+            # resurrect it in front of players, next to the live thread that
+            # should have received the news.
+            actions.append(PostMessage(thread_id=thread.id, idea_id=idea_id,
+                                       text=text, kind="merit",
+                                       field_name="merit_awarded",
+                                       value=canonical_id))
     if not (thread.archived and thread.locked):
         actions.append(ArchiveThread(thread_id=thread.id, idea_id=idea_id, locked=True,
                                      reason=f"merit awarded on {canonical_id}"))
@@ -1478,7 +1486,8 @@ def _plan_merit_close(actions: list[Action], idea_id: str, thread: ForumThread,
 def _plan_unlikely(actions: list[Action], idea_id: str, thread: ForumThread,
                    view: StoreView, ctx: PlanContext) -> None:
     """``unlikely`` => post and archive, deliberately **without** locking."""
-    if not view.unchanged(idea_id, "status", "unlikely"):
+    # Same reopening hazard as the merit path: never post into a closed thread.
+    if not view.unchanged(idea_id, "status", "unlikely") and not thread.archived:
         actions.append(PostMessage(
             thread_id=thread.id, idea_id=idea_id,
             text=UNLIKELY_MESSAGE.format(link=ctx._link(idea_id)),

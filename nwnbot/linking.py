@@ -30,10 +30,19 @@ Three signals, in decreasing order of trust:
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from typing import Any, Iterable, Mapping, Sequence
 
 from nwnbot import dupes
+
+#: A link to another thread in the same guild. When the admin moves an idea
+#: between #bugs and #feature-requests they open a new thread and CLOSE the old
+#: one rather than deleting it, and leaving a link behind says which is which.
+#: Declared beats inferred: without it the two threads are near-identical text
+#: and only their timestamps hint at the direction.
+THREAD_URL_RE = re.compile(
+    r"https?://(?:\w+\.)?discord\.com/channels/(\d+)/(\d+)(?:/\d+)?")
 
 #: The admin's convention, and what each mark means about the thread.
 #: Neither is required and neither is sufficient — see the module docstring.
@@ -61,6 +70,9 @@ class ThreadRef:
     url: str = ""
     archived: bool = False
     reactions: tuple[str, ...] = ()
+    #: Every message in the thread, so a "moved to <link>" note can be found.
+    #: Only the text is needed, so this is deliberately not ForumMessage.
+    messages: tuple[str, ...] = ()
 
     @property
     def marked_created(self) -> bool:
@@ -75,6 +87,24 @@ class ThreadRef:
         """Whether the admin marked this thread as already in the roadmap."""
         return self.marked_created or self.marked_shipped
 
+    @property
+    def superseded_by(self) -> str:
+        """The thread this one was moved to, or "".
+
+        Only read on a CLOSED thread. An open thread linking to another is
+        ordinary cross-referencing — "see also" — and reading that as a move
+        would silently retire a live thread. A closed one carrying a link is
+        the admin's own convention for "this went over there", which is the
+        whole reason it is worth honouring.
+        """
+        if not self.archived:
+            return ""
+        for text in self.messages:
+            for _guild, thread_id in THREAD_URL_RE.findall(text or ""):
+                if thread_id != self.id:
+                    return thread_id
+        return ""
+
 
 @dataclass(frozen=True)
 class Proposal:
@@ -82,6 +112,9 @@ class Proposal:
 
     thread: ThreadRef
     candidates: tuple[dict, ...] = ()
+
+    #: Set when this thread was closed in favour of another one.
+    superseded_by: str = ""
 
     @property
     def best(self) -> dict | None:
@@ -96,6 +129,7 @@ class Proposal:
             "archived": self.thread.archived,
             "marked_created": self.thread.marked_created,
             "marked_shipped": self.thread.marked_shipped,
+            "superseded_by": self.superseded_by,
             "candidates": [dict(c) for c in self.candidates],
         }
 
@@ -164,18 +198,32 @@ def propose(threads: Iterable[ThreadRef], ideas: Sequence[Mapping[str, Any]],
     """
     linked = {str((i.get("discord") or {}).get("thread_id") or "")
               for i in ideas if isinstance(i.get("discord"), Mapping)}
+    threads = list(threads)
+    ids = {t.id for t in threads}
     prepared = dupes.prepare(ideas)
     by_id = {str(i.get("id")): i for i in ideas}
     out: list[Proposal] = []
     for thread in threads:
         if thread.id in linked:
             continue
+        moved_to = thread.superseded_by
+        if moved_to and moved_to in ids:
+            # The admin moved this idea between #bugs and #feature-requests,
+            # closed this thread and left a link to its replacement. The
+            # replacement is the one that should carry the roadmap link, and
+            # asking the model about a thread whose answer is already written
+            # down is both wasted time and an invitation to link the wrong one.
+            out.append(Proposal(thread=thread, candidates=(),
+                                superseded_by=moved_to))
+            continue
         cands = shortlist(thread, prepared, limit=limit)
         out.append(judge_thread(thread, cands, by_id, client,
                                 scorer_id=scorer_id))
     # Most likely first, and a thread the admin already marked ahead of one
     # they did not: those are the rows where a yes/no is quickest.
+    # Superseded rows sink: they need one dismissal, not a decision.
     out.sort(key=lambda p: (
+        bool(p.superseded_by),
         not (p.best or {}).get("llm") == "same",
         not p.thread.marked,
         -float((p.best or {}).get("score") or 0.0),
@@ -187,9 +235,11 @@ def summarise(proposals: Sequence[Proposal]) -> dict:
     """Counts for the run summary, so the shape is visible before any linking."""
     agreed = sum(1 for p in proposals if (p.best or {}).get("llm") == "same")
     marked = sum(1 for p in proposals if p.thread.marked)
-    none = sum(1 for p in proposals if not p.candidates)
+    moved = sum(1 for p in proposals if p.superseded_by)
+    none = sum(1 for p in proposals if not p.candidates and not p.superseded_by)
     return {"threads": len(proposals), "model_agrees": agreed,
-            "marked_by_admin": marked, "no_candidates": none}
+            "marked_by_admin": marked, "no_candidates": none,
+            "superseded": moved}
 
 
 __all__ = ["CHECK", "SALUTE", "SHORTLIST", "SHORTLIST_FLOOR", "Proposal",

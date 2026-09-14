@@ -699,7 +699,10 @@ def cmd_link(args: argparse.Namespace, env: Mapping[str, str],
     threads = [linking.ThreadRef(
         id=t.id, channel_id=t.channel_id, title=t.title,
         body=(t.starter.content if t.starter else ""),
-        url=t.url, archived=t.archived, reactions=marks.get(t.id, ()))
+        url=t.url, archived=t.archived, reactions=marks.get(t.id, ()),
+        # Every message, so a "moved to <link>" note left when an idea was
+        # moved between the two forums is found. See ThreadRef.superseded_by.
+        messages=tuple(m.content for m in t.all_messages))
         for t in forum.threads]
 
     proposals = linking.propose(threads, list(snapshot.ideas), judge,

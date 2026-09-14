@@ -183,3 +183,80 @@ def test_a_proposal_serialises_everything_the_editor_needs():
     assert d["thread_id"] == "t-1" and d["url"] == "https://discord/x"
     assert d["marked_created"] is True and d["marked_shipped"] is False
     assert d["candidates"][0]["id"] == "bank-tab-order-resets"
+
+
+# --------------------------------------------------------------------------
+# Moved threads. The admin moves an idea between #bugs and #feature-requests
+# by opening a new thread and CLOSING the old one, leaving a link behind.
+# Thread ids are numeric snowflakes, which is what the url pattern matches.
+# --------------------------------------------------------------------------
+
+OLD_ID = "1544373948420980866"
+NEW_ID = "1547362745597567068"
+MOVED = f"https://discord.com/channels/514343293761486848/{NEW_ID}"
+
+
+def pair(old_kw=None, new_kw=None):
+    old_kw = {"archived": True, "messages": ("moved: " + MOVED,), **(old_kw or {})}
+    return [thread(tid=OLD_ID, **old_kw), thread(tid=NEW_ID, **(new_kw or {}))]
+
+
+def test_a_closed_thread_linking_to_another_is_superseded():
+    out = linking.propose(pair(), IDEAS)
+    old = next(p for p in out if p.thread.id == OLD_ID)
+    assert old.superseded_by == NEW_ID
+    assert old.candidates == ()          # no decision to make, just a dismissal
+
+
+def test_an_open_thread_linking_to_another_is_NOT_superseded():
+    # "see also" on a live thread must never retire it.
+    out = linking.propose(pair({"archived": False}), IDEAS)
+    old = next(p for p in out if p.thread.id == OLD_ID)
+    assert old.superseded_by == ""
+    assert old.candidates != ()
+
+
+def test_a_link_to_a_thread_that_is_gone_is_ignored():
+    # Pointing at a deleted thread must not silently retire this one too.
+    out = linking.propose(
+        [thread(tid=OLD_ID, archived=True, messages=("moved: " + MOVED,))], IDEAS)
+    assert out[0].superseded_by == ""
+    assert out[0].candidates != ()
+
+
+def test_a_superseded_thread_is_never_asked_about():
+    # The answer is already written down; asking the model is waste.
+    llm = FakeLlm()
+    linking.propose(pair(), IDEAS, llm)
+    assert 0 < len(llm.calls) <= linking.SHORTLIST   # the live thread only
+
+
+def test_a_thread_linking_to_itself_is_not_superseded():
+    self_link = f"https://discord.com/channels/514343293761486848/{OLD_ID}"
+    out = linking.propose(
+        [thread(tid=OLD_ID, archived=True, messages=(self_link,))], IDEAS)
+    assert out[0].superseded_by == ""
+
+
+def test_a_message_link_still_resolves_to_the_thread():
+    # Copying a MESSAGE link gives .../<guild>/<thread>/<message>.
+    deep = f"https://discord.com/channels/514343293761486848/{NEW_ID}/999888777"
+    out = linking.propose(
+        [thread(tid=OLD_ID, archived=True, messages=(deep,)), thread(tid=NEW_ID)],
+        IDEAS)
+    assert next(p for p in out if p.thread.id == OLD_ID).superseded_by == NEW_ID
+
+
+def test_superseded_rows_sort_last():
+    out = linking.propose(pair(), IDEAS)
+    assert out[-1].thread.id == OLD_ID
+
+
+def test_the_summary_counts_superseded_separately():
+    s = linking.summarise(linking.propose(pair(), IDEAS))
+    assert s["superseded"] == 1 and s["no_candidates"] == 0
+
+
+def test_supersession_survives_serialisation():
+    out = linking.propose(pair(), IDEAS)
+    assert out[-1].as_dict()["superseded_by"] == NEW_ID
