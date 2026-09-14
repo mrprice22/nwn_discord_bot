@@ -1877,3 +1877,164 @@ def test_no_status_message_is_silent_by_accident():
     from nwnbot.sync import APPROVED_OUTLOOK, STATUS_OUTLOOK, STATUSES
     accounted = set(APPROVED_OUTLOOK) | set(STATUS_OUTLOOK) | set(QUIET_STATUSES)
     assert set(STATUSES) - accounted == {"unlikely"}, "unlikely has its own path"
+
+
+# ==========================================================================
+# Group <-> forum tag, in BOTH directions.
+# ==========================================================================
+from nwnbot.sync import (SetThreadTags, REVIEW_AMBIGUOUS_TAGS,  # noqa: E402
+                         REVIEW_GROUP_CONFLICT)
+
+
+def _tagged(*tags, group="forge", archived=False):
+    """An idea in `group`, linked to a thread carrying `tags`."""
+    row = idea(status="planned", group=group, discord={"thread_id": "t-1"})
+    return row, forum(thread(tags=tags, archived=archived))
+
+
+def _r2d_view(**hashes):
+    return StoreView(hashes={("forge-thing", k): content_hash(v)
+                             for k, v in hashes.items()})
+
+
+# -- roadmap -> discord: the half that did not exist ----------------------
+def test_a_group_change_in_the_roadmap_retags_the_thread():
+    row, fm = _tagged("tag-bosses", group="forge")
+    plan = plan_roadmap_to_discord(roadmap(row), fm, _r2d_view(group="bosses"), CTX)
+    retag, = [a for a in plan if isinstance(a, SetThreadTags)]
+    assert retag.tag_names == ("tag-forge",)
+    assert retag.group == "forge"
+
+
+def test_retagging_keeps_every_tag_that_is_not_a_group():
+    # Discord allows several tags and the admin uses that. Only the one naming
+    # a group belongs to the bot.
+    row, fm = _tagged("tag-bosses", "needs-repro", "urgent", group="forge")
+    plan = plan_roadmap_to_discord(roadmap(row), fm, _r2d_view(group="bosses"), CTX)
+    retag, = [a for a in plan if isinstance(a, SetThreadTags)]
+    assert retag.tag_names == ("tag-forge", "needs-repro", "urgent")
+
+
+def test_a_thread_already_carrying_the_group_tag_is_left_alone():
+    row, fm = _tagged("tag-forge", "urgent", group="forge")
+    plan = plan_roadmap_to_discord(roadmap(row), fm, _r2d_view(group="forge"), CTX)
+    assert [a for a in plan if isinstance(a, SetThreadTags)] == []
+
+
+def test_the_first_sighting_adopts_the_group_instead_of_retagging():
+    """120 threads predate this. A sweep that rewrote the disagreeing ones is
+    a mass edit, not a sync."""
+    row, fm = _tagged("tag-bosses", group="forge")
+    plan = plan_roadmap_to_discord(roadmap(row), fm, None, CTX)
+    assert [a for a in plan if isinstance(a, SetThreadTags)] == []
+    assert ("group", "forge") in {(a.field_name, a.value) for a in plan
+                                  if isinstance(a, RecordBaseline)}
+
+
+def test_an_archived_thread_is_never_retagged():
+    # Discord refuses to edit an archived thread, and unarchiving to fix a tag
+    # bumps a closed thread to the top of the forum in front of players.
+    row, fm = _tagged("tag-bosses", group="forge", archived=True)
+    plan = plan_roadmap_to_discord(roadmap(row), fm, _r2d_view(group="bosses"), CTX)
+    assert [a for a in plan if isinstance(a, SetThreadTags)] == []
+
+
+def test_a_retag_can_never_clear_every_tag():
+    with pytest.raises(ForbiddenWrite):
+        SetThreadTags(thread_id="t-1", idea_id="x", tag_names=(), group="forge")
+
+
+# -- the loop the shared hash exists to prevent ---------------------------
+def test_the_two_directions_do_not_take_turns_undoing_each_other():
+    """When the ROADMAP is the side that moved, the tag reader stays out of it.
+
+    The stored hash is what says who moved. Here it still holds the tag's
+    group, so the thread has not changed -- the editor has -- and the only
+    correct action is to re-tag Discord. A reader that acted on "the tag
+    differs from the group" alone would drag the group back every cycle and
+    the two would trade it forever.
+
+    Both directions are planned from the SAME snapshot, so this is not a
+    theoretical ordering: it is what one cycle does.
+    """
+    row, fm = _tagged("tag-bosses", group="forge")   # admin moved it to forge
+    view = _r2d_view(group="bosses")                 # ...and they last agreed on bosses
+
+    back = plan_discord_to_roadmap(roadmap(row), fm, view, CTX)
+    assert [a for a in back if isinstance(a, UpdateIdeaField)] == []
+    assert review_kinds(back) == []
+
+    fwd = plan_roadmap_to_discord(roadmap(row), fm, view, CTX)
+    retag, = [a for a in fwd if isinstance(a, SetThreadTags)]
+    assert retag.tag_names == ("tag-forge",)
+    # Applying it records the group both sides now agree on.
+    after = simulate(fwd, roadmap(row), fm, view, CTX)[2]
+    assert after.unchanged("forge-thing", "group", "forge")
+
+
+# -- discord -> roadmap: several tags ------------------------------------
+def test_one_group_tag_still_moves_the_roadmap():
+    row, fm = _tagged("tag-bosses", group="forge")
+    plan = plan_discord_to_roadmap(roadmap(row), fm, _r2d_view(group="forge"), CTX)
+    write, = [a for a in plan if isinstance(a, UpdateIdeaField)]
+    assert (write.field_name, write.value) == ("group", "bosses")
+
+
+def test_an_extra_group_tag_is_not_a_change_when_one_of_them_agrees():
+    # Three of the four multi-tagged threads look like this: the group is
+    # there, alongside a second tag the admin added.
+    row, fm = _tagged("tag-forge", "tag-bosses", group="forge")
+    plan = plan_discord_to_roadmap(roadmap(row), fm, _r2d_view(group="forge"), CTX)
+    assert [a for a in plan if isinstance(a, UpdateIdeaField)] == []
+    assert review_kinds(plan) == []
+
+
+def test_two_group_tags_that_agree_with_neither_is_a_review_item():
+    """It used to take whichever came first in Discord's ordering.
+
+    That is not a decision anybody made, and the ordering is not even stable.
+    """
+    row, fm = _tagged("tag-bosses", "tag-forge", group="qol")
+    plan = plan_discord_to_roadmap(roadmap(row), fm, _r2d_view(group="qol"), CTX)
+    assert [a for a in plan if isinstance(a, UpdateIdeaField)] == []
+    assert REVIEW_AMBIGUOUS_TAGS in review_kinds(plan)
+
+
+def test_a_move_on_both_sides_is_a_conflict_not_a_winner():
+    # Last-writer-wins needs a last writer. Stored group is neither side's.
+    row, fm = _tagged("tag-bosses", group="forge")
+    plan = plan_discord_to_roadmap(roadmap(row), fm, _r2d_view(group="qol"), CTX)
+    assert [a for a in plan if isinstance(a, UpdateIdeaField)] == []
+    assert REVIEW_GROUP_CONFLICT in review_kinds(plan)
+
+
+def test_a_retag_drops_only_the_tag_that_went_stale():
+    """The admin's second group tag is their filing, not the bot's mistake.
+
+    Live example: a thread tagged 'Combat & Classes' + 'Quests & Areas' whose
+    idea moved to `meaningwave`. Only the first is stale -- it is the group
+    they last agreed on. Collapsing both would enforce "one group" on the
+    Discord side, where it never applied.
+    """
+    row = idea(status="planned", group="qol", discord={"thread_id": "t-1"})
+    fm = forum(thread(tags=("tag-forge", "tag-bosses", "keep-me")))
+    ctx = PlanContext(tag_groups={**CTX.tag_groups, "tag-qol": "qol"},
+                      channel_types=CTX.channel_types,
+                      editor_url=CTX.editor_url, bot_user_id=CTX.bot_user_id,
+                      staff_players=CTX.staff_players)
+    plan = plan_roadmap_to_discord(roadmap(row), fm, _r2d_view(group="forge"), ctx)
+    retag, = [a for a in plan if isinstance(a, SetThreadTags)]
+    assert retag.tag_names == ("tag-qol", "tag-bosses", "keep-me")
+
+
+def test_the_reader_says_nothing_about_a_disagreement_the_retag_owns():
+    """Two group tags, one of them the last-agreed value: not ambiguous.
+
+    The roadmap is the side that moved, so this is the retag's business. A
+    review item here would describe a disagreement already being fixed.
+    """
+    row = idea(status="planned", group="qol", discord={"thread_id": "t-1"})
+    fm = forum(thread(tags=("tag-forge", "tag-bosses")))
+    plan = plan_discord_to_roadmap(roadmap(row), fm, _r2d_view(group="forge"), CTX)
+    assert [a for a in plan if isinstance(a, UpdateIdeaField)] == []
+    assert review_kinds(plan) == []

@@ -198,7 +198,7 @@ __all__ = [
 
 
 class ForumWriter:
-    """What an executor is allowed to do to a forum. Three calls, no more.
+    """What an executor is allowed to do to a forum. Four calls, no more.
 
     Deliberately narrow: there is no delete, no edit-someone-else's-message and
     no unarchive. A thread the bot opened it can close; a player's words it can
@@ -216,6 +216,17 @@ class ForumWriter:
 
     async def archive_thread(self, thread_id: str, *, locked: bool = False) -> None:
         """Archive a thread, locking it only when merit has really been paid."""
+        raise NotImplementedError
+
+    async def set_thread_tags(self, thread_id: str,
+                              tag_names: tuple[str, ...]) -> None:
+        """Set a thread's forum tags to exactly ``tag_names``.
+
+        The caller decides the whole list, including the tags it is keeping.
+        Deciding what to keep is a mapping question, and the mapping lives in
+        the planner where it can be reasoned about and tested -- not here,
+        where it would be invisible.
+        """
         raise NotImplementedError
 
 
@@ -248,6 +259,10 @@ class RecordingForumWriter(ForumWriter):
 
     async def archive_thread(self, thread_id: str, *, locked: bool = False) -> None:
         self.calls.append(("archive_thread", thread_id, locked))
+
+    async def set_thread_tags(self, thread_id: str,
+                              tag_names: tuple[str, ...]) -> None:
+        self.calls.append(("set_thread_tags", thread_id, tuple(tag_names)))
 
     @property
     def kinds(self) -> tuple[str, ...]:

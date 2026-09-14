@@ -45,6 +45,7 @@ from nwnbot.sync import (
     unlinked_threads,
     AppendComment,
     ArchiveThread,
+    SetThreadTags,
     CreateIdea,
     CreateThread,
     Plan,
@@ -382,6 +383,9 @@ class SyncEngine:
         elif isinstance(action, ArchiveThread):
             await self.forum_writer.archive_thread(action.thread_id,
                                                    locked=action.locked)
+        elif isinstance(action, SetThreadTags):
+            await self.forum_writer.set_thread_tags(action.thread_id,
+                                                    action.tag_names)
         else:
             raise TypeError(f"no executor for action type {type(action).__name__}")
 
@@ -624,6 +628,19 @@ class DiscordForumWriter(ForumWriter):  # pragma: no cover - needs a gateway
     async def archive_thread(self, thread_id: str, *, locked: bool = False) -> None:
         thread = await self._thread(thread_id)
         await thread.edit(archived=True, locked=locked)
+
+    async def set_thread_tags(self, thread_id: str,
+                              tag_names: tuple[str, ...]) -> None:
+        thread = await self._thread(thread_id)
+        # Tags are resolved against the PARENT forum's available_tags, and are
+        # objects rather than names on the wire. `thread.parent` is a guild
+        # cache lookup and is None on a gateway-less path, so fetch the channel
+        # by id the way everything else here does.
+        parent = await self._channel(str(thread.parent_id))
+        wanted = {name.lower() for name in tag_names}
+        tags = [t for t in getattr(parent, "available_tags", []) or []
+                if t.name.lower() in wanted]
+        await thread.edit(applied_tags=tags)
 
 
 async def build_forum_snapshot(client: Any, channel_ids: Iterable[str],

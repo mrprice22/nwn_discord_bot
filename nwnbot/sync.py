@@ -305,6 +305,13 @@ REVIEW_UNKNOWN_AUTHOR = "unknown_author"
 REVIEW_PLAYER_NOT_ON_ROSTER = "player_not_on_roster"
 REVIEW_THREAD_RENAMED = "thread_renamed"
 REVIEW_UNMAPPED_TAG = "unmapped_tag"
+#: A thread carries more than one tag that maps to a group, so "which group is
+#: this" has no answer. The bot used to take whichever came first in Discord's
+#: ordering, which is not a decision anybody made.
+REVIEW_AMBIGUOUS_TAGS = "ambiguous_tags"
+#: The group moved on BOTH sides since they last agreed. Last-writer-wins needs
+#: a last writer; when both wrote, there is nothing to do but ask.
+REVIEW_GROUP_CONFLICT = "group_conflict"
 REVIEW_TAG_MAPPING_MISSING = "tag_mapping_missing"
 REVIEW_UNKNOWN_CHANNEL = "unknown_channel"
 REVIEW_NO_CHANNEL_FOR_TYPE = "no_channel_for_type"
@@ -662,6 +669,45 @@ class ArchiveThread(Action):
 
 
 @dataclass(frozen=True)
+class SetThreadTags(Action):
+    """Re-tag a thread so its group tag matches the roadmap's group.
+
+    ``tag_names`` is the COMPLETE list the thread should end up with, group tag
+    and all. The planner computes it by swapping the group tag and keeping
+    everything else, because Discord allows several tags and only one of them
+    is the bot's business.
+    """
+
+    thread_id: str
+    idea_id: str
+    tag_names: tuple[str, ...]
+    group: str
+    previous: str = ""
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "tag_names", tuple(self.tag_names))
+        if not self.tag_names:
+            # Clearing every tag would drop the thread out of every forum
+            # filter, which is a bigger change than "the group moved".
+            raise ForbiddenWrite("refusing to clear a thread's tags")
+
+    @property
+    def key(self) -> str:
+        return f"tags:{self.thread_id}"
+
+    def effects(self) -> Effects:
+        # The SAME hash the other direction reads. One fact -- "the group both
+        # sides last agreed on" -- so whichever side moves it, the other stops
+        # seeing a change and the two cannot take turns undoing each other.
+        return Effects(hashes={(self.idea_id, "group"): self.group})
+
+    def describe(self) -> str:
+        return (f"re-tag thread {self.thread_id} for group {self.group!r}"
+                f"{f' (was {self.previous!r})' if self.previous else ''} "
+                f"-> {list(self.tag_names)}")
+
+
+@dataclass(frozen=True)
 class RecordBaseline(Action):
     """Record a field's current value in the store without telling anyone.
 
@@ -856,6 +902,15 @@ class PlanContext:
             if group:
                 return group
         return None
+
+    def group_tags(self, tag_names: Iterable[str]) -> tuple[str, ...]:
+        """Just the tags that name a roadmap group, in the thread's order.
+
+        Discord allows several tags per thread and the admin uses that -- four
+        threads carry two group tags today. Everything that is NOT a group tag
+        is the admin's own filing and the bot neither reads nor touches it.
+        """
+        return tuple(n for n in tag_names if self.tag_groups.get(n))
 
     def tags_for_group(self, group: str) -> tuple[str, ...]:
         return tuple(name for name, gid in self.tag_groups.items() if gid == group)
@@ -1553,20 +1608,58 @@ def _plan_thread_replies(actions: list[Action], thread: ForumThread, idea_id: st
 def _plan_tag_change(actions: list[Action], thread: ForumThread,
                      idea: Mapping[str, Any], view: StoreView,
                      ctx: PlanContext) -> None:
-    """Tag changed => update ``group``. No mapping => nothing, not a guess."""
+    """Tag changed => update ``group``. No mapping => nothing, not a guess.
+
+    The roadmap holds ONE group; Discord allows several tags. So:
+
+    * one group tag  -- that is the group, and the old behaviour.
+    * several        -- if one of them already IS the idea's group, the thread
+      simply carries an extra tag and there is nothing to decide. Otherwise it
+      is genuinely ambiguous and becomes a review item. It used to take
+      whichever tag came first in Discord's ordering, which is not a decision
+      anybody made and is not even stable.
+    * none           -- unchanged: a review item, never a guess.
+    """
     if not ctx.tag_groups or not thread.tag_names:
         return
     idea_id = str(idea.get("id"))
-    group = ctx.group_for_tags(thread.tag_names)
-    if not group:
+    tags = ctx.group_tags(thread.tag_names)
+    current = str(idea.get("group") or "")
+    if not tags:
         _review(actions, view, REVIEW_UNMAPPED_TAG, thread.id,
                 f"thread {thread.id} carries tags {list(thread.tag_names)} and none "
                 f"maps to a roadmap group", thread_id=thread.id, idea_id=idea_id)
         return
-    if group == idea.get("group"):
+    groups = [ctx.tag_groups[n] for n in tags]
+    if current in groups:
+        return  # already agrees; any other group tag is the admin's own filing
+    # If one of the tags present is the group they last AGREED on, then the
+    # side that moved is the roadmap, and re-tagging Discord is the answer --
+    # not reading the thread's now-stale tag back over it. Saying nothing here
+    # is what lets the other direction own it; a review item would also be
+    # wrong, because it describes a disagreement that is already being fixed.
+    if any(view.unchanged(idea_id, "group", g) for g in groups):
         return
+    if len(groups) > 1:
+        _review(actions, view, REVIEW_AMBIGUOUS_TAGS, thread.id,
+                f"thread {thread.id} carries {len(groups)} group tags "
+                f"{list(tags)} and idea {idea_id!r} is in {current!r}; which one "
+                f"is the group is not the bot's call",
+                thread_id=thread.id, idea_id=idea_id)
+        return
+    group = groups[0]
     if view.unchanged(idea_id, "group", group):
         return  # already planned/applied at this value; the roadmap will catch up
+    # Last-writer-wins, and the stored hash is what says who wrote. If the
+    # ROADMAP is the side that moved, the other direction re-tags Discord and
+    # this must not drag it back -- that is the loop.
+    if view.seen(idea_id, "group") and not view.unchanged(idea_id, "group", current):
+        _review(actions, view, REVIEW_GROUP_CONFLICT, idea_id,
+                f"group moved on both sides since they last agreed: thread "
+                f"{thread.id} is tagged {group!r} and idea {idea_id!r} is "
+                f"{current!r}; set them to match to clear this",
+                thread_id=thread.id, idea_id=idea_id)
+        return
     actions.append(UpdateIdeaField(idea_id=idea_id, field_name="group", value=group,
                                    previous=idea.get("group"), thread_id=thread.id))
 
@@ -1667,6 +1760,11 @@ def plan_roadmap_to_discord(roadmap: Snapshot, forum: ForumSnapshot,
         if idea.get("status") == "unlikely":
             _plan_unlikely(actions, idea_id, thread, view, ctx)
             continue
+
+        # Tags are filing, not news: this posts nothing and so does not take
+        # the cycle from the branches below. A group move and a status move on
+        # the same idea should produce both, not one and then the other.
+        _plan_group_retag(actions, idea_id, idea, thread, view, ctx)
 
         # A moved address outranks the rest: every link this thread holds is
         # dead until it is said, and the branches below would otherwise spend
@@ -1854,6 +1952,60 @@ def _plan_approved_post(actions: list[Action], idea_id: str, idea: Mapping[str, 
     return True
 
 
+def _plan_group_retag(actions: list[Action], idea_id: str, idea: Mapping[str, Any],
+                      thread: ForumThread, view: StoreView,
+                      ctx: PlanContext) -> None:
+    """The roadmap's group moved: put the matching tag on the thread.
+
+    The other half of the tag sync, which only ever ran Discord -> roadmap. A
+    group changed in the editor left the forum showing the old one, so the two
+    filters people actually browse by disagreed and nothing said so.
+
+    Multiple tags are preserved on purpose. Discord allows several and the
+    admin uses that; only the ONE that names a group belongs to the bot, so
+    this swaps that slot and leaves every other tag exactly where it is.
+
+    Not planned when the thread is archived: Discord refuses to edit an
+    archived thread (50083), and unarchiving to fix a tag would bump a closed
+    thread to the top of the forum in front of players.
+    """
+    if not ctx.tag_groups or thread.archived:
+        return
+    group = str(idea.get("group") or "")
+    if not group:
+        return
+    present = ctx.group_tags(thread.tag_names)
+    if group in [ctx.tag_groups[n] for n in present]:
+        return  # the thread already carries this group's tag
+    wanted = ctx.tags_for_group(group)
+    if not wanted:
+        _review(actions, view, REVIEW_UNMAPPED_TAG, idea_id,
+                f"group {group!r} has no forum tag mapped to it, so thread "
+                f"{thread.id} cannot be re-tagged to match idea {idea_id!r}",
+                thread_id=thread.id, idea_id=idea_id)
+        return
+    if not view.seen(idea_id, "group"):
+        # First sighting: adopt, never re-tag. 120 threads predate this, and a
+        # sweep that silently rewrote every disagreeing one is not a sync, it
+        # is a mass edit nobody asked for.
+        actions.append(RecordBaseline(idea_id=idea_id, field_name="group",
+                                      value=group))
+        return
+    if view.unchanged(idea_id, "group", group):
+        return  # already applied at this value
+    # Remove ONLY the tag for the group they last agreed on -- that is the one
+    # this change makes stale. Every other tag stays, group tag or not: Discord
+    # allows several and the admin uses that deliberately. Collapsing them all
+    # to one would quietly undo their filing to enforce a rule that only ever
+    # applied to the roadmap side, where there is one group and always was.
+    stale = {n for n in present
+             if view.unchanged(idea_id, "group", ctx.tag_groups[n])}
+    keep = tuple(n for n in thread.tag_names if n not in stale)
+    actions.append(SetThreadTags(
+        thread_id=thread.id, idea_id=idea_id, tag_names=wanted[:1] + keep,
+        group=group, previous=", ".join(sorted(stale))))
+
+
 def _plan_relink_post(actions: list[Action], idea_id: str, thread: ForumThread,
                       view: StoreView, ctx: PlanContext) -> bool:
     """The idea's address changed: say so, with the new link.
@@ -2025,6 +2177,9 @@ __all__ = [
     "Plan",
     "PlanContext",
     "PostMessage",
+    "SetThreadTags",
+    "REVIEW_AMBIGUOUS_TAGS",
+    "REVIEW_GROUP_CONFLICT",
     "RecordBaseline",
     "REVIEW_ACTION_CAP",
     "REVIEW_BROKEN_LINK",
