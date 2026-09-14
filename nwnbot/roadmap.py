@@ -551,6 +551,19 @@ class RoadmapClient:
         return await self._request("POST", API_IDEA_COMMENT,
                                    {"id": idea_id, "text": body})
 
+    async def post_json(self, path: str, payload: Mapping[str, Any]) -> dict:
+        """A plain authenticated POST, for endpoints with no idea semantics.
+
+        Used by ``link`` to hand the editor its thread-matching proposals.
+        Deliberately does NOT go through the idea-writing guards, because it
+        does not write ideas: the guards exist to police the ideas array, and
+        stretching them over an unrelated endpoint would make them mean less,
+        not more. The editor gates this route itself.
+        """
+        if not path.startswith("/api/"):
+            raise ForbiddenWrite(f"refusing to post to {path!r}")
+        return await self._request("POST", path, dict(payload))
+
     async def new_idea(self, idea: MutableMapping[str, Any], *,
                        snapshot: Snapshot | None = None) -> SaveResult:
         """Append one new idea through :meth:`save`.

@@ -37,10 +37,14 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import logging
 import os
 import sys
+from datetime import datetime, timezone
 from dataclasses import dataclass, replace
 from pathlib import Path
+
+log = logging.getLogger("nwnbot")
 from typing import Any, Mapping, Sequence
 
 from nwnbot import config as cfg
@@ -648,6 +652,124 @@ def cmd_dupes(args: argparse.Namespace, env: Mapping[str, str], out: Any) -> int
     return EXIT_OK
 
 
+def cmd_link(args: argparse.Namespace, env: Mapping[str, str],
+             out: Any) -> int:  # pragma: no cover - needs a gateway
+    """Propose which roadmap idea each existing Discord thread already is.
+
+    A migration, run once and then occasionally: neither side knew about the
+    other before the bot existed, so not one idea carries a `discord` link. Any
+    thread that already has an idea would otherwise be duplicated in BOTH
+    directions -- a backfill opening a second thread, and an inbound sync
+    minting a second idea.
+
+    This writes proposals and links nothing. A wrong link would post one
+    player's status updates and merit announcements into another player's
+    thread, so the confirming is the admin's, in the editor.
+    """
+    import asyncio as _asyncio
+    import json as _json
+
+    from nwnbot import linking, llm as _llm
+    from nwnbot.bot import build_forum_snapshot, make_intents
+    from nwnbot.roadmap import RoadmapClient
+
+    token = env.get(cfg.ENV_DISCORD_BOT_TOKEN) or ""
+    if not token:
+        raise SystemExit(f"{cfg.ENV_DISCORD_BOT_TOKEN} is not set")
+    judge = None if args.no_llm else _llm.from_env(env)
+
+    async def go():
+        import discord
+
+        client = discord.Client(intents=make_intents())
+        await client.login(token)
+        try:
+            forum = await build_forum_snapshot(
+                client, tuple(_channel_types(env)),
+                (env.get(cfg.ENV_DISCORD_BOT_USER_ID) or ""))
+            marks = await _thread_reactions(client, forum)
+        finally:
+            await client.close()
+        async with RoadmapClient.from_env(env) as roadmap_client:
+            await roadmap_client.login()
+            snapshot = await roadmap_client.fetch()
+        return forum, marks, snapshot
+
+    forum, marks, snapshot = _asyncio.run(go())
+    threads = [linking.ThreadRef(
+        id=t.id, channel_id=t.channel_id, title=t.title,
+        body=(t.starter.content if t.starter else ""),
+        url=t.url, archived=t.archived, reactions=marks.get(t.id, ()))
+        for t in forum.threads]
+
+    proposals = linking.propose(threads, list(snapshot.ideas), judge,
+                                scorer_id=cfg.DUPE_SCORER_ID)
+    summary = linking.summarise(proposals)
+    payload = {"generated": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+               "model": (judge.model if judge else ""),
+               "proposals": [p.as_dict() for p in proposals]}
+    Path(args.out).write_text(_json.dumps(payload, indent=2, ensure_ascii=False),
+                              encoding="utf-8")
+
+    print(f"{summary['threads']} unlinked thread(s); the model agrees with "
+          f"{summary['model_agrees']}, you have marked "
+          f"{summary['marked_by_admin']}, {summary['no_candidates']} have no "
+          f"candidate at all.", file=out)
+    print(f"wrote {args.out}. Nothing was linked.", file=out)
+    if not judge:
+        print("The model was not asked; these are token scores alone.", file=out)
+    if args.upload:
+        code = _upload_links(env, payload, out)
+        if code != EXIT_OK:
+            return code
+        print("Uploaded. Review them in the editor's Thread links tab.", file=out)
+    else:
+        print("Pass --upload to send them to the editor for review.", file=out)
+    return EXIT_OK
+
+
+async def _thread_reactions(client: Any, forum: Any
+                            ) -> dict:  # pragma: no cover - needs a gateway
+    """The reactions on each thread's opening post.
+
+    Not part of the sync snapshot: the planners have no use for reactions, and
+    this is the only thing that does. The admin's convention is a salute when
+    an idea was created for a thread and a check when it shipped -- only 7 of
+    37 threads carry either, so it corroborates a match and never makes one.
+    """
+    out: dict[str, tuple] = {}
+    for thread in forum.threads:
+        try:
+            channel = (client.get_channel(int(thread.id))
+                       or await client.fetch_channel(int(thread.id)))
+            message = await channel.fetch_message(int(thread.id))
+            out[thread.id] = tuple(str(r.emoji) for r in message.reactions)
+        except Exception as exc:
+            log.warning("no reactions for thread %s: %s", thread.id, exc)
+            out[thread.id] = ()
+    return out
+
+
+def _upload_links(env: Mapping[str, str], payload: Mapping[str, Any],
+                  out: Any) -> int:  # pragma: no cover - needs the editor
+    """POST the proposals to the editor so its review tab can read them."""
+    import asyncio as _asyncio
+
+    from nwnbot.roadmap import RoadmapClient, RoadmapError
+
+    async def go():
+        async with RoadmapClient.from_env(env) as client:
+            await client.login()
+            return await client.post_json("/api/thread-links", dict(payload))
+
+    try:
+        _asyncio.run(go())
+    except (RoadmapError, OSError) as exc:
+        print(f"upload failed: {exc}", file=out)
+        return EXIT_FAIL
+    return EXIT_OK
+
+
 # --------------------------------------------------------------------------
 # plan
 # --------------------------------------------------------------------------
@@ -1056,6 +1178,19 @@ def build_parser() -> argparse.ArgumentParser:
     dupes_.add_argument("--floor", type=float, default=0.3, metavar="X",
                         help="ignore pairs below this score (default 0.3)")
 
+    link = subs.add_parser(
+        "link", help="match existing Discord threads to roadmap ideas they "
+                     "already describe (proposes; never links)")
+    common(link)
+    link.add_argument("--out", metavar="PATH", default="thread-links.json",
+                      help="where to write the proposals "
+                           "(default thread-links.json)")
+    link.add_argument("--upload", action="store_true",
+                      help="also POST the proposals to the roadmap editor, so "
+                           "its Thread links tab can review them")
+    link.add_argument("--no-llm", action="store_true",
+                      help="token scorer only; do not ask the model")
+
     return parser
 
 
@@ -1067,6 +1202,7 @@ HANDLERS = {
     "serve": cmd_serve,
     "review": cmd_review,
     "dupes": cmd_dupes,
+    "link": cmd_link,
 }
 
 
