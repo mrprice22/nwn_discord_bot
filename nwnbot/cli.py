@@ -393,6 +393,31 @@ def _seed_players(snapshot: Snapshot | None, path: str) -> Check:
                  f"do not). No id was guessed; fill discord_ids by hand.")
 
 
+def check_images(env: Mapping[str, str]) -> Check:
+    """Whether Discord screenshots will be kept, and loudly if they will not.
+
+    A warning rather than a failure: the bot is useful without rehosting, and a
+    report is worth more than its screenshot. But it must SAY so, because the
+    alternative to rehosting is not "store the Discord link" — that link is
+    signed and dies within a day — it is "the image only exists in Discord".
+    """
+    from nwnbot import r2
+
+    try:
+        store = r2.from_env(env)
+    except cfg.ConfigError as exc:
+        return Check("images", "fail", str(exc))
+    if store is None:
+        return Check("images", "warn",
+                     "R2 is not configured — Discord screenshots will NOT be "
+                     "kept, and will be recorded as present-but-not-kept. Set "
+                     f"{cfg.ENV_R2_ACCOUNT_ID} and the other R2_* variables "
+                     "to turn rehosting on.")
+    return Check("images", "ok",
+                 f"rehosting to {store.bucket!r}, served from "
+                 f"{store.public_base_url}")
+
+
 def cmd_doctor(args: argparse.Namespace, env: Mapping[str, str],
                out: Any) -> int:
     world = load_fixture(args.fixture) if args.fixture else None
@@ -421,6 +446,7 @@ def cmd_doctor(args: argparse.Namespace, env: Mapping[str, str],
     mapping, source = tag_map_for(args, world)
     checks.append(check_tag_map(mapping, forum, source))
     checks.append(check_players(getattr(args, "players", None)))
+    checks.append(check_images(env))
 
     seed_to = getattr(args, "seed_players", None)
     if seed_to:
@@ -763,6 +789,21 @@ def _write_backfill(report: RunReport, context: PlanContext, path: str,
 # --------------------------------------------------------------------------
 # serve, and the live path — never exercised by the test suite
 # --------------------------------------------------------------------------
+def _image_store(env: Mapping[str, str]):  # pragma: no cover - thin wiring
+    """Where rehosted screenshots go, or ``None`` when R2 is not configured.
+
+    Rehosting is a read of Discord and a write to object storage; it is NOT
+    gated on NWNBOT_DRY_RUN, which governs writes to the guild and the roadmap.
+    A dry run that could not rehost would print a plan claiming every image was
+    lost, which is not what applying it would do — the plan would be a lie.
+    Objects are content-addressed, so a dry run and the apply that follows write
+    the same object once.
+    """
+    from nwnbot import r2
+
+    return r2.from_env(env)
+
+
 def _channel_types(env: Mapping[str, str]) -> dict[str, str]:
     """Forum channel id -> item type: bugs => Defect, features => Enhancement.
 
@@ -830,7 +871,8 @@ def _live(args: argparse.Namespace, env: Mapping[str, str], out: Any, *,
             try:
                 source = LiveSource(roadmap_client, client,
                                     tuple(_channel_types(env)),
-                                    context.bot_user_id)
+                                    context.bot_user_id,
+                                    image_store=_image_store(env))
                 engine = SyncEngine(
                     source, context, store=view, roadmap_client=roadmap_client,
                     forum_writer=(DiscordForumWriter(client) if not dry_run
@@ -872,7 +914,8 @@ def cmd_serve(args: argparse.Namespace, env: Mapping[str, str],
         async with RoadmapClient.from_env(env) as roadmap_client:
             await roadmap_client.login()
             source = LiveSource(roadmap_client, None, tuple(_channel_types(env)),
-                                context.bot_user_id)
+                                context.bot_user_id,
+                                image_store=_image_store(env))
             engine = SyncEngine(source, context, store=store,
                                 roadmap_client=roadmap_client, dry_run=dry_run,
                                 strict_config=True)

@@ -229,6 +229,18 @@ ENV_DISCORD_GUILD_ID = "DISCORD_GUILD_ID"
 ENV_DISCORD_BOT_USER_ID = "DISCORD_BOT_USER_ID"
 ENV_DISCORD_BUGS_FORUM_ID = "DISCORD_BUGS_FORUM_ID"
 ENV_DISCORD_FEATURES_FORUM_ID = "DISCORD_FEATURES_FORUM_ID"
+#: Cloudflare R2, where rehosted Discord screenshots live. All five or none:
+#: see nwnbot.r2.from_env for why half-configured is refused rather than
+#: degraded. Unset everywhere means rehosting is off and images are reported as
+#: present-but-not-kept -- never written as a signed link that dies in a day.
+ENV_R2_ACCOUNT_ID = "R2_ACCOUNT_ID"
+ENV_R2_BUCKET = "R2_BUCKET"
+ENV_R2_ACCESS_KEY_ID = "R2_ACCESS_KEY_ID"
+ENV_R2_SECRET_ACCESS_KEY = "R2_SECRET_ACCESS_KEY"
+#: The bucket's public custom domain. This is the only R2 value that is ever
+#: written into a roadmap item, so it must be a durable credential-free URL.
+ENV_R2_PUBLIC_BASE_URL = "R2_PUBLIC_BASE_URL"
+
 ENV_NWNBOT_DB = "NWNBOT_DB"
 ENV_NWNBOT_PLAYERS = "NWNBOT_PLAYERS"
 ENV_NWNBOT_DRY_RUN = "NWNBOT_DRY_RUN"
