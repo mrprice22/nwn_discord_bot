@@ -940,13 +940,45 @@ def _run_backfill(args: argparse.Namespace, world: World, planned: list,
 
 
 def _write_backfill(report: RunReport, context: PlanContext, path: str,
-                    out: Any) -> int:
+                    out: Any, armed: bool = False) -> int:
     creates = [a for a in report.actions if isinstance(a, CreateThread)]
     Path(path).write_text(render_backfill(creates, context=context), encoding="utf-8")
-    print(f"wrote {path}: {len(creates)} thread(s) would be created.", file=out)
-    print(f"Nothing was created. Read it, then: NWNBOT_DRY_RUN=0 "
-          f"python -m nwnbot backfill --yes --cap {len(creates)}", file=out)
-    return EXIT_OK
+
+    if armed and report.aborted:
+        # An armed run that planned nothing because the CYCLE aborted. Saying
+        # "nothing was created" and nothing else reads as "there was nothing to
+        # do", which is the opposite of the truth and sends the reader back to
+        # Discord to find out why the threads are missing. A cycle aborts whole,
+        # so the usual cause is the OTHER direction being over the cap.
+        print(f"wrote {path}: {len(creates)} thread(s) planned.", file=out)
+        print("NOTHING WAS CREATED — the cycle hit the action cap and aborted. "
+              "A cycle aborts as a whole, so this is usually the Discord -> "
+              "roadmap direction being over it, not the backfill.", file=out)
+        for item in report.plans:
+            if item.aborted:
+                print(f"  {item.direction}: {item.reason}", file=out)
+        print(f"Raise --cap above the LARGER direction and re-run.", file=out)
+        return EXIT_FAIL
+
+    if not armed:
+        print(f"wrote {path}: {len(creates)} thread(s) would be created.", file=out)
+        print(f"Nothing was created. Read it, then: NWNBOT_DRY_RUN=0 "
+              f"python -m nwnbot backfill --yes --cap {len(creates)}", file=out)
+        return EXIT_OK
+
+    # An armed run reports what HAPPENED, not what was planned. Reporting the
+    # planned count as "created" hid fourteen failures on the first live run:
+    # the batch keeps going past a per-thread error, which is right, but it
+    # means the only place the failures exist is this summary.
+    print(f"wrote {path}: {len(creates)} thread(s) planned, "
+          f"{len(report.applied)} applied, {len(report.failures)} failed.",
+          file=out)
+    for line in report.failures:
+        print(f"  FAILED {line}", file=out)
+    if report.failures:
+        print("Re-run to retry them: a thread that was created is linked on its "
+              "idea and is not planned again.", file=out)
+    return EXIT_OK if not report.failures else EXIT_FAIL
 
 
 # --------------------------------------------------------------------------
@@ -1060,7 +1092,8 @@ def _live(args: argparse.Namespace, env: Mapping[str, str], out: Any, *,
 
     report = asyncio.run(go())
     if backfill_to:
-        return _write_backfill(report, context, backfill_to, out)
+        return _write_backfill(report, context, backfill_to, out,
+                               armed=not dry_run)
     print_report(report, out)
     return EXIT_OK if report.ok else EXIT_FAIL
 

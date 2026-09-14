@@ -368,8 +368,12 @@ def test_truncate_leaves_short_text_untouched():
     assert truncate_for_discord("short", EDITOR_URL) == "short"
 
 
-def test_truncate_default_limit_is_4000():
-    assert DISCORD_TEXT_LIMIT == 4000
+def test_truncate_default_limit_is_discords_real_message_limit():
+    # 2000, not 4000. 4000 came from the EMBED description ceiling (4096), and
+    # nothing here posts an embed — so four backfill threads were rejected
+    # outright with "In content: Must be 2000 or fewer in length" and never
+    # created at all. The number has to be the one Discord actually enforces.
+    assert DISCORD_TEXT_LIMIT == 2000
 
 
 @pytest.mark.parametrize("size", [3999, 4000, 4001, 12000])

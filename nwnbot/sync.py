@@ -101,6 +101,13 @@ TERMINAL_STATUSES = frozenset({"awarded", "unlikely"})
 #: been a schema change, and so a reopening of [r1].
 NEW_IDEA_STATUS = "planned"
 
+#: Discord's hard limit on a forum thread name. A roadmap title can be a whole
+#: sentence -- 41 of 423 are over this -- and the API rejects the create
+#: outright with "In name: Must be between 1 and 100 in length", so the thread
+#: is simply never made. Cut on a word boundary and mark it, because a title
+#: that stops mid-word reads like the report was damaged.
+DISCORD_THREAD_TITLE_MAX = 100
+
 #: Ids show up in URLs, `dupe_of` pickers and conflict messages; the editor
 #: trims to 60 (`roadmap-editor.py:4584`, `shortenId(slugifyId(title), 60)`).
 ID_MAX_LEN = 60
@@ -257,6 +264,20 @@ _COMBINING = re.compile("[\\u0300-\\u036f]")
 _APOSTROPHES = re.compile("['\\u2019]")
 _NON_SLUG = re.compile(r"[^a-z0-9]+")
 _TRIM_DASHES = re.compile(r"^-+|-+$")
+
+
+def thread_title(title: str) -> str:
+    """A roadmap title cut to something Discord will accept as a thread name."""
+    text = " ".join((title or "").split())
+    if len(text) <= DISCORD_THREAD_TITLE_MAX:
+        return text
+    cut = text[:DISCORD_THREAD_TITLE_MAX - 1]
+    space = cut.rfind(" ")
+    # Only honour a word boundary past halfway; a very long first word would
+    # otherwise leave almost nothing.
+    if space > DISCORD_THREAD_TITLE_MAX // 2:
+        cut = cut[:space]
+    return cut.rstrip(" ,.;:-") + "…"
 
 
 def slugify_id(title: str | None) -> str:
@@ -1497,7 +1518,8 @@ def _plan_new_thread(actions: list[Action], idea: Mapping[str, Any],
     body = truncate_for_discord(THREAD_BODY.format(body=body, link=ctx._link(idea_id)),
                                 editor_url=ctx.idea_url(idea_id))
     actions.append(CreateThread(idea_id=idea_id, channel_id=channel_id,
-                                title=str(idea.get("title") or idea_id), body=body,
+                                title=thread_title(str(idea.get("title") or idea_id)),
+                                body=body,
                                 tag_names=tags, status=status,
                                 triage=_is_true(idea.get("triage"))))
 
@@ -1524,9 +1546,14 @@ def _plan_merit_close(actions: list[Action], idea_id: str, thread: ForumThread,
                                        text=text, kind="merit",
                                        field_name="merit_awarded",
                                        value=canonical_id))
-    if not (thread.archived and thread.locked):
+    if not thread.archived:
         actions.append(ArchiveThread(thread_id=thread.id, idea_id=idea_id, locked=True,
                                      reason=f"merit awarded on {canonical_id}"))
+    # An already-archived thread is left exactly as it is, even when it is not
+    # locked. Discord refuses to modify an archived thread -- "50083: Thread is
+    # archived" -- so adding the lock would mean unarchiving it first, which
+    # bumps it back to the top of the forum in front of players. A missing lock
+    # on a closed thread is not worth reopening it for.
 
 
 def _plan_unlikely(actions: list[Action], idea_id: str, thread: ForumThread,
@@ -1752,5 +1779,7 @@ __all__ = [
     "simulate",
     "unlinked_threads",
     "slugify_id",
+    "thread_title",
+    "DISCORD_THREAD_TITLE_MAX",
     "unique_idea_id",
 ]

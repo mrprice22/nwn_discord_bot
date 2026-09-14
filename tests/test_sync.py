@@ -1444,3 +1444,66 @@ def test_candidates_never_become_a_dupe_of():
         roadmap(EXISTING), forum(dupe_thread()), None, DUPE_CTX)
     created = [a for a in plan if isinstance(a, CreateIdea)]
     assert "dupe_of" not in created[0].idea
+
+
+# ==========================================================================
+# Discord's thread-name limit. 41 of 423 roadmap titles are over it, and the
+# API rejects the create outright rather than truncating.
+# ==========================================================================
+from nwnbot.sync import DISCORD_THREAD_TITLE_MAX, thread_title  # noqa: E402
+
+LONG = ("Standardize every boss respawn to 20 minutes and the enrage "
+        "out-of-combat reset so the fight behaves the same everywhere")
+
+
+def test_a_short_title_is_untouched():
+    assert thread_title("Bank tab order resets") == "Bank tab order resets"
+
+
+def test_a_long_title_is_cut_to_the_limit():
+    out = thread_title(LONG)
+    assert len(out) <= DISCORD_THREAD_TITLE_MAX
+    assert out.startswith("Standardize every boss respawn")
+
+
+def test_a_cut_title_says_it_was_cut():
+    # A title stopping mid-sentence reads like the report was damaged.
+    assert thread_title(LONG).endswith("…")
+
+
+def test_a_cut_falls_on_a_word_boundary():
+    assert not thread_title(LONG)[:-1].endswith(" ")
+    assert " " not in thread_title(LONG)[-2:]
+
+
+def test_one_enormous_word_still_fits():
+    out = thread_title("x" * 300)
+    assert len(out) <= DISCORD_THREAD_TITLE_MAX
+
+
+def test_whitespace_is_collapsed_first():
+    assert thread_title("  a   b  ") == "a b"
+
+
+def test_the_planner_uses_the_cut_title():
+    row = idea(status="wip", title=LONG)
+    plan = plan_roadmap_to_discord(roadmap(row), forum(), None, CTX)
+    created = [a for a in plan if isinstance(a, CreateThread)][0]
+    assert len(created.title) <= DISCORD_THREAD_TITLE_MAX
+
+
+def test_an_already_archived_thread_is_not_archived_again():
+    # Discord refuses to modify an archived thread (50083), and unarchiving it
+    # to add a lock would bump it to the top of the forum in front of players.
+    row = idea(merit_awarded=True, discord={"thread_id": "t-1"})
+    plan = plan_roadmap_to_discord(roadmap(row), forum(thread(archived=True)),
+                                   _view(status="awarded"), CTX)
+    assert not [a for a in plan if isinstance(a, ArchiveThread)]
+
+
+def test_an_open_thread_is_still_archived_and_locked_on_merit():
+    row = idea(merit_awarded=True, discord={"thread_id": "t-1"})
+    plan = plan_roadmap_to_discord(roadmap(row), forum(thread()),
+                                   _view(status="awarded"), CTX)
+    archives = [a for a in plan if isinstance(a, ArchiveThread)]
+    assert len(archives) == 1 and archives[0].locked is True

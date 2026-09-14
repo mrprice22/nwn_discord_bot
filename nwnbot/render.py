@@ -42,9 +42,12 @@ import re
 from html import escape
 from html.parser import HTMLParser
 
-# Discord's plain-message limit is 2000 and an embed description is 4096; the
-# plan fixes Discord-bound text at 4000 so a link back to the editor always fits.
-DISCORD_TEXT_LIMIT = 4000
+# Discord's limit on plain message CONTENT is 2000. An embed description may be
+# 4096, which is where 4000 came from -- but nothing here posts an embed, so
+# that ceiling never applied and four backfill threads were rejected outright
+# with "In content: Must be 2000 or fewer in length". The thread is not created
+# at all when this is exceeded, so the number has to be the real one.
+DISCORD_TEXT_LIMIT = 2000
 
 # Discord's own interface assets, as opposed to something a player uploaded.
 # `discord.com/assets/<hash>.svg` is an emoji or an icon from the app's own
