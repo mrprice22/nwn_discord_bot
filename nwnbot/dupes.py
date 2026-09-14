@@ -33,6 +33,7 @@ from dataclasses import dataclass
 from typing import Any, Iterable, Mapping, Sequence
 
 __all__ = [
+    "are_siblings",
     "Candidate",
     "Prepared",
     "STOPWORDS",
@@ -181,6 +182,9 @@ class Prepared:
     #: resembles something already delivered can still be *recognised* as a
     #: regression or follow-up instead of silently looking novel.
     shipped: bool = False
+    #: The idea's ``depends_on``, verbatim. Read only to decide siblinghood —
+    #: see :func:`are_siblings`. Never inferred from titles or epics.
+    depends_on: frozenset[str] = frozenset()
 
 
 @dataclass(frozen=True)
@@ -227,8 +231,42 @@ def prepare(ideas: Iterable[Mapping[str, Any]], *,
             group=str(idea.get("group") or ""),
             body=_flatten_notes(idea.get("notes"), notes_max),
             shipped=is_shipped(idea),
+            depends_on=_depends_on(idea.get("depends_on")),
         ))
     return tuple(out)
+
+
+def _depends_on(value: Any) -> frozenset[str]:
+    """``depends_on`` as a set of ids, tolerating anything the lint would refuse.
+
+    A ``str`` is rejected outright rather than iterated: a bare string is
+    iterable, so accepting one would turn ``"not-a-list"`` into a set of
+    *characters*, and two malformed items sharing any letter would then look
+    like siblings and silently suppress a real duplicate suggestion.
+    """
+    if not isinstance(value, (list, tuple, set, frozenset)):
+        return frozenset()
+    return frozenset(d.strip() for d in value if isinstance(d, str) and d.strip())
+
+
+def are_siblings(a: Prepared, b: Prepared) -> bool:
+    """Whether two ideas are related work rather than the same idea twice.
+
+    True when one depends on the other, or when both depend on something in
+    common. The second case is the important one: twelve prestige quests all
+    waiting on the same fix are twelve pieces of work that share a parent, and
+    they read as near-identical text.
+
+    Deliberately reads only ``depends_on``, which a human wrote. Epics group
+    the same families correctly but cannot be used for this — ``legendary-levels``
+    holds both real duplicates and non-duplicates, so inferring siblinghood
+    from it would suppress true positives. A declared link cannot guess wrong.
+    """
+    if a.idea_id == b.idea_id:
+        return False
+    if b.idea_id in a.depends_on or a.idea_id in b.depends_on:
+        return True
+    return bool(a.depends_on & b.depends_on)
 
 
 def rank(title: str | None, body: str | None,
@@ -237,7 +275,8 @@ def rank(title: str | None, body: str | None,
          stopwords: Iterable[str] = STOPWORDS,
          title_weight: float = 0.6,
          limit: int = 5,
-         exclude: Iterable[str] = ()) -> tuple[Candidate, ...]:
+         exclude: Iterable[str] = (),
+         sibling_of: Prepared | None = None) -> tuple[Candidate, ...]:
     """Score one thread against every candidate, best first.
 
     O(n) over the candidate list — ~404 ideas today, so no index is warranted
@@ -246,6 +285,8 @@ def rank(title: str | None, body: str | None,
     """
     base = frozenset(stopwords) | group_words(tag_names)
     skip = frozenset(exclude)
+    if sibling_of is not None:
+        skip |= {c.idea_id for c in candidates if are_siblings(sibling_of, c)}
     scored: list[Candidate] = []
     for cand in candidates:
         if cand.idea_id in skip:

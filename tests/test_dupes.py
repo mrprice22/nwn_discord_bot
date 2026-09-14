@@ -212,3 +212,69 @@ def test_is_shipped_reads_the_receipt_before_the_status():
     assert dupes.is_shipped({"status": "planned", "merit_awarded": True}) is True
     assert dupes.is_shipped({"status": "implemented"}) is True
     assert dupes.is_shipped({"status": "wip"}) is False
+
+
+# --------------------------------------------------------------------------
+# Siblings: related work, never the same idea twice. Declared, never inferred.
+# --------------------------------------------------------------------------
+
+def _prep(*rows):
+    return {p.idea_id: p for p in dupes.prepare(rows)}
+
+
+def test_one_depending_on_the_other_makes_them_siblings():
+    p = _prep(idea("a", "Alpha"), dict(idea("b", "Beta"), depends_on=["a"]))
+    assert dupes.are_siblings(p["a"], p["b"]) is True
+    assert dupes.are_siblings(p["b"], p["a"]) is True     # symmetric
+
+
+def test_a_shared_dependency_makes_them_siblings():
+    # The prestige-quest shape: twelve items, one common parent.
+    p = _prep(idea("parent", "Halmir as a general guide"),
+              dict(idea("a", "Prestige quest: Harper Scout"), depends_on=["parent"]),
+              dict(idea("b", "Prestige quest: Shifter"), depends_on=["parent"]))
+    assert dupes.are_siblings(p["a"], p["b"]) is True
+
+
+def test_unrelated_ideas_are_not_siblings():
+    p = _prep(idea("a", "Alpha"), idea("b", "Beta"))
+    assert dupes.are_siblings(p["a"], p["b"]) is False
+
+
+def test_an_idea_is_not_its_own_sibling():
+    p = _prep(dict(idea("a", "Alpha"), depends_on=["x"]))
+    assert dupes.are_siblings(p["a"], p["a"]) is False
+
+
+def test_siblinghood_is_not_inferred_from_the_epic():
+    # `legendary-levels` holds both real duplicates and non-duplicates, so an
+    # epic can never stand in for a declared link. Same epic, no depends_on.
+    p = _prep(idea("a", "Legendary Feats: dominion feats", epic="legendary-levels"),
+              idea("b", "Legendary Feats: arcane feats", epic="legendary-levels"))
+    assert dupes.are_siblings(p["a"], p["b"]) is False
+
+
+def test_rank_skips_siblings_of_the_subject():
+    p = _prep(idea("parent", "Halmir fix"),
+              dict(idea("a", "Prestige quest: Harper Scout"), depends_on=["parent"]),
+              dict(idea("b", "Prestige quest: Shifter"), depends_on=["parent"]))
+    others = [p["b"]]
+    assert dupes.rank("Prestige quest: Harper Scout", "", others) != ()
+    assert dupes.rank("Prestige quest: Harper Scout", "", others,
+                      sibling_of=p["a"]) == ()
+
+
+def test_a_malformed_depends_on_is_ignored_rather_than_raising():
+    # The roadmap lint refuses these, but the bot must never crash on data it
+    # merely read: a non-list, or a list with non-strings in it.
+    p = _prep(dict(idea("a", "Alpha"), depends_on="not-a-list"),
+              dict(idea("b", "Beta"), depends_on=[None, 7, "a"]))
+    assert p["b"].depends_on == frozenset({"a"})
+    assert dupes.are_siblings(p["a"], p["b"]) is True   # b depends on a
+    # A bare string must yield NOTHING, not a set of its characters: two
+    # malformed items sharing a letter would otherwise look like siblings and
+    # silently suppress a real duplicate suggestion.
+    assert p["a"].depends_on == frozenset()
+    q = _prep(dict(idea("x", "X"), depends_on="not-a-list"),
+              dict(idea("y", "Y"), depends_on="lemon"))
+    assert dupes.are_siblings(q["x"], q["y"]) is False

@@ -547,8 +547,16 @@ def cmd_dupes(args: argparse.Namespace, env: Mapping[str, str], out: Any) -> int
           f"({len(prepared) * (len(prepared) - 1) // 2} pairs)", file=out)
 
     pairs: list[tuple[float, str, str, str, str]] = []
+    siblings = 0
     for i, left in enumerate(prepared):
         for right in prepared[i + 1:]:
+            if dupes.are_siblings(left, right):
+                # Declared related work, not the same idea twice. Skipped
+                # outright rather than scored and shown: a suggestion a human
+                # has already answered structurally is noise, and this is the
+                # sweep that fills the /dupes queue.
+                siblings += 1
+                continue
             drop = (dupes.STOPWORDS | dupes.group_words(left.group)
                     | dupes.group_words(right.group))
             value = dupes.score(left.title, left.body, right.title, right.body,
@@ -557,6 +565,9 @@ def cmd_dupes(args: argparse.Namespace, env: Mapping[str, str], out: Any) -> int
                 pairs.append((value, left.idea_id, right.idea_id,
                               left.title, right.title))
     pairs.sort(key=lambda row: (-row[0], row[1], row[2]))
+    if siblings:
+        print(f"skipped {siblings} pair(s) linked by depends_on — related work, "
+              f"never the same idea twice", file=out)
 
     low, high = cfg.DUPE_LOW_THRESHOLD, cfg.DUPE_HIGH_THRESHOLD
     for value, a_id, b_id, a_title, b_title in pairs[:args.top]:
