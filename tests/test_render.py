@@ -21,6 +21,7 @@ import pytest
 import yaml
 
 from nwnbot.render import (
+    is_chrome_image,
     CDN_EXPIRY_NOTE,
     DISCORD_TEXT_LIMIT,
     TRUNCATION_MARKER,
@@ -144,9 +145,17 @@ def test_real_discord_notes_survive_html_to_md_without_markup(note):
 @pytest.mark.parametrize("note", DISCORD_NOTES, ids=NOTE_IDS)
 def test_real_discord_notes_keep_their_links_and_images(note):
     md = html_to_md(note["notes"])
-    for url in re.findall(r'(?:href|src)="(https?://[^"]+)"', note["notes"]):
+    for attr, url in re.findall(r'(href|src)="(https?://[^"]+)"', note["notes"]):
         # Entities in the stored attribute are decoded by the parser.
-        assert url.replace("&amp;", "&") in md
+        url = url.replace("&amp;", "&")
+        if attr == "src" and is_chrome_image(url):
+            # Deliberately dropped: Discord's own emoji and icons arrive with a
+            # pasted message and mean nothing outside the app. 14 open roadmap
+            # items carried one, and each would have put a meaningless
+            # 80-character URL into a player-facing post.
+            assert url not in md
+            continue
+        assert url in md
 
 
 # --- escaping is a security boundary ---------------------------------------
@@ -406,3 +415,33 @@ def test_functions_do_not_mutate_their_input():
     html_to_md(src)
     md_to_html(before)
     assert src == before
+
+
+# --------------------------------------------------------------------------
+# Discord's own chrome, as opposed to something a player uploaded.
+# --------------------------------------------------------------------------
+
+def test_a_discord_emoji_asset_is_dropped_not_linked():
+    # It came with a pasted message, it is decoration that did not survive the
+    # copy, and as text it is a meaningless 80-character URL in a sentence a
+    # player reads. 14 open roadmap items carried one.
+    out = html_to_md('<div>more weapons? '
+                     '<img src="https://discord.com/assets/58a76b2.svg"></div>')
+    assert "discord.com/assets" not in out
+    assert "more weapons?" in out
+
+
+def test_a_real_image_still_comes_through():
+    out = html_to_md('<div>shot: <img src="https://img.homerslotr.com/x.webp"></div>')
+    assert "https://img.homerslotr.com/x.webp" in out
+
+
+def test_a_discordapp_assets_url_is_chrome_too():
+    out = html_to_md('<div>x <img src="https://cdn.discordapp.com/assets/1.svg"></div>')
+    assert "assets" not in out
+
+
+def test_an_uploaded_attachment_is_not_chrome():
+    # cdn.discordapp.com/ATTACHMENTS is a player's screenshot, not furniture.
+    url = "https://cdn.discordapp.com/attachments/1/2/shot.png"
+    assert url in html_to_md(f'<div><img src="{url}"></div>')

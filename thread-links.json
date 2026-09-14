@@ -1,441 +1,7 @@
 {
-  "generated": "2026-09-14T13:37:37+00:00",
+  "generated": "2026-09-14T14:13:56+00:00",
   "model": "D:\\models\\Qwen3.6-35B-A3B-Q4_K_M.gguf",
   "proposals": [
-    {
-      "thread_id": "1544444430625280151",
-      "channel_id": "1544082381076561930",
-      "title": "Anaralia (spider queen) second drop",
-      "url": "https://discord.com/channels/514343293761486848/1544444430625280151",
-      "archived": false,
-      "marked_created": true,
-      "marked_shipped": false,
-      "superseded_by": "",
-      "candidates": [
-        {
-          "id": "anaralia-spider-queen-second-drop",
-          "title": "Anaralia (spider queen) second drop",
-          "score": 0.875,
-          "status": "wip",
-          "shipped": false,
-          "by": "D:\\models\\Qwen3.6-35B-A3B-Q4_K_M.gguf",
-          "llm": "same",
-          "why": "SAME The roadmap item contains the exact same title and description as the Discord thread report."
-        },
-        {
-          "id": "ll-maxlevel-cap",
-          "title": "Raise the server level cap to 60",
-          "score": 0.323,
-          "status": "awarded",
-          "shipped": true,
-          "by": "D:\\models\\Qwen3.6-35B-A3B-Q4_K_M.gguf",
-          "llm": "different",
-          "why": "DIFFERENT The roadmap item concerns server level caps, while the report is about a specific loot drop from a boss."
-        },
-        {
-          "id": "bard-song-issues-round-2",
-          "title": "Bard song issues round 2",
-          "score": 0.322,
-          "status": "awarded",
-          "shipped": true,
-          "by": "D:\\models\\Qwen3.6-35B-A3B-Q4_K_M.gguf",
-          "llm": "different",
-          "why": "DIFFERENT The roadmap item concerns Bard song mechanics, while the report is about a loot drop from a boss fight."
-        },
-        {
-          "id": "respawn-tracker-well-of-eru",
-          "title": "Respawn Tracker in Well of Eru",
-          "score": 0.316,
-          "status": "awarded",
-          "shipped": true,
-          "by": "D:\\models\\Qwen3.6-35B-A3B-Q4_K_M.gguf",
-          "llm": "different",
-          "why": "DIFFERENT The roadmap item tracks boss respawn timers, while the report is about a specific loot drop from a boss."
-        },
-        {
-          "id": "gondor-scribe",
-          "title": "Well of Souls Quest: No Gondor Scribe",
-          "score": 0.314,
-          "status": "awarded",
-          "shipped": true,
-          "by": "D:\\models\\Qwen3.6-35B-A3B-Q4_K_M.gguf",
-          "llm": "different",
-          "why": "DIFFERENT The roadmap item concerns the Well of Souls quest and the Gondor Scribe, while the report is about Anaralia's loot drops."
-        }
-      ]
-    },
-    {
-      "thread_id": "1544572901611667589",
-      "channel_id": "1544082381076561930",
-      "title": "Combat dummy can be slain",
-      "url": "https://discord.com/channels/514343293761486848/1544572901611667589",
-      "archived": true,
-      "marked_created": false,
-      "marked_shipped": true,
-      "superseded_by": "",
-      "candidates": [
-        {
-          "id": "combat-dummy-can-be-slain",
-          "title": "Combat dummy can be slain",
-          "score": 0.802,
-          "status": "manual",
-          "shipped": false,
-          "by": "D:\\models\\Qwen3.6-35B-A3B-Q4_K_M.gguf",
-          "llm": "same",
-          "why": "SAME The roadmap item explicitly addresses the specific issues reported by the user regarding the Combat Dummy being slain by Flame of the West and the Katana of Dol Guldur."
-        },
-        {
-          "id": "more-combat-dummys-request",
-          "title": "More combat dummys request",
-          "score": 0.455,
-          "status": "later",
-          "shipped": false,
-          "by": "D:\\models\\Qwen3.6-35B-A3B-Q4_K_M.gguf",
-          "llm": "different",
-          "why": "DIFFERENT The report concerns a bug where the existing dummy is killable, while the roadmap item requests new dummies with specific resistances."
-        },
-        {
-          "id": "combat-dummy",
-          "title": "combat dummy to measure attacks and damage per round",
-          "score": 0.4,
-          "status": "awarded",
-          "shipped": true,
-          "by": "D:\\models\\Qwen3.6-35B-A3B-Q4_K_M.gguf",
-          "llm": "different",
-          "why": "DIFFERENT The roadmap item describes the dummy's intended function as a measurement tool, whereas the report highlights a bug where the dummy is unexpectedly killable."
-        },
-        {
-          "id": "banking-duplicate-exploit",
-          "title": "Bank items duplicate exploit",
-          "score": 0.34,
-          "status": "awarded",
-          "shipped": true,
-          "by": "D:\\models\\Qwen3.6-35B-A3B-Q4_K_M.gguf",
-          "llm": "different",
-          "why": "DIFFERENT The roadmap item addresses a banking duplication exploit, while the report concerns a combat mechanic bug where a dummy is killable."
-        },
-        {
-          "id": "Morannon-Spell-Failure",
-          "title": "Is Morannon meant to have arcane spell failure?",
-          "score": 0.322,
-          "status": "awarded",
-          "shipped": true,
-          "by": "D:\\models\\Qwen3.6-35B-A3B-Q4_K_M.gguf",
-          "llm": "different",
-          "why": "DIFFERENT The roadmap item concerns arcane spell failure in the Morannon area, while the report is about a combat dummy being killable by specific weapons."
-        }
-      ]
-    },
-    {
-      "thread_id": "1544373948420980866",
-      "channel_id": "1544082381076561930",
-      "title": "Boss enrages after killing player",
-      "url": "https://discord.com/channels/514343293761486848/1544373948420980866",
-      "archived": true,
-      "marked_created": false,
-      "marked_shipped": true,
-      "superseded_by": "",
-      "candidates": [
-        {
-          "id": "boss-enrages-after-killing-player",
-          "title": "Boss enrages after killing player",
-          "score": 0.774,
-          "status": "manual",
-          "shipped": false,
-          "by": "D:\\models\\Qwen3.6-35B-A3B-Q4_K_M.gguf",
-          "llm": "same",
-          "why": "SAME The roadmap item explicitly describes fixing the bug where the boss enraged after killing a player, which matches the reported issue."
-        },
-        {
-          "id": "ring-bearer-quest",
-          "title": "Quest of the Ring Bearer",
-          "score": 0.368,
-          "status": "wip",
-          "shipped": false,
-          "by": "D:\\models\\Qwen3.6-35B-A3B-Q4_K_M.gguf",
-          "llm": "different",
-          "why": "DIFFERENT The thread reports a bug regarding boss behavior, while the roadmap item proposes a new PvP quest feature."
-        },
-        {
-          "id": "legendary-caster-spells-on-level-up",
-          "title": "casters not getting spells after level 40",
-          "score": 0.348,
-          "status": "awarded",
-          "shipped": true,
-          "by": "D:\\models\\Qwen3.6-35B-A3B-Q4_K_M.gguf",
-          "llm": "different",
-          "why": "DIFFERENT The thread reports a boss enrage mechanic, while the roadmap item addresses a spell selection bug for casters above level 40."
-        },
-        {
-          "id": "petrification-respawn-defect-round-3",
-          "title": "Petrification still not killing after 3 min",
-          "score": 0.346,
-          "status": "awarded",
-          "shipped": true,
-          "by": "D:\\models\\Qwen3.6-35B-A3B-Q4_K_M.gguf",
-          "llm": "different",
-          "why": "DIFFERENT The thread reports a boss enrage mechanic, while the roadmap item addresses a specific bug regarding petrification timeouts and death mechanics."
-        },
-        {
-          "id": "bard-song-2",
-          "title": "Bard song damge modifier (not working again)",
-          "score": 0.34,
-          "status": "awarded",
-          "shipped": true,
-          "by": "D:\\models\\Qwen3.6-35B-A3B-Q4_K_M.gguf",
-          "llm": "different",
-          "why": "DIFFERENT The Discord report concerns a boss enrage mechanic, while the roadmap item addresses a Bard song damage calculation bug."
-        }
-      ]
-    },
-    {
-      "thread_id": "1544494197791526942",
-      "channel_id": "1544082381076561930",
-      "title": "Bard curse song",
-      "url": "https://discord.com/channels/514343293761486848/1544494197791526942",
-      "archived": false,
-      "marked_created": true,
-      "marked_shipped": false,
-      "superseded_by": "",
-      "candidates": [
-        {
-          "id": "bard-curse-song-not-lowering-concentration-skill",
-          "title": "Bard curse song not lowering concentration skill",
-          "score": 0.6,
-          "status": "wip",
-          "shipped": false,
-          "by": "D:\\models\\Qwen3.6-35B-A3B-Q4_K_M.gguf",
-          "llm": "same",
-          "why": "SAME The roadmap item contains the exact same text and describes the identical issue reported in the Discord thread."
-        },
-        {
-          "id": "bard-curse-song-is-op",
-          "title": "bard curse song is op",
-          "score": 0.642,
-          "status": "soon",
-          "shipped": false,
-          "by": "D:\\models\\Qwen3.6-35B-A3B-Q4_K_M.gguf",
-          "llm": "different",
-          "why": "DIFFERENT The report concerns a specific bug where curse effects fail to lower concentration stats on certain mobs, while the roadmap item discusses the overall power balance and hit chance of the skill."
-        },
-        {
-          "id": "add-custom-helmet-skins",
-          "title": "Add custom helmet skins",
-          "score": 0.395,
-          "status": "wip",
-          "shipped": false,
-          "by": "D:\\models\\Qwen3.6-35B-A3B-Q4_K_M.gguf",
-          "llm": "different",
-          "why": "DIFFERENT The roadmap item concerns cosmetic helmet skins, while the report is about a gameplay mechanic bug regarding Bard curse songs and concentration DCs."
-        },
-        {
-          "id": "bard-song-issues-round-2",
-          "title": "Bard song issues round 2",
-          "score": 0.354,
-          "status": "awarded",
-          "shipped": true,
-          "by": "D:\\models\\Qwen3.6-35B-A3B-Q4_K_M.gguf",
-          "llm": "different",
-          "why": "DIFFERENT The roadmap item addresses attack bonus application bugs, while the report concerns concentration DC calculations for specific mobs."
-        },
-        {
-          "id": "combat-dummy-can-be-slain",
-          "title": "Combat dummy can be slain",
-          "score": 0.34,
-          "status": "manual",
-          "shipped": false,
-          "by": "D:\\models\\Qwen3.6-35B-A3B-Q4_K_M.gguf",
-          "llm": "different",
-          "why": "DIFFERENT The Discord report concerns Bard curse mechanics and concentration DCs, while the roadmap item addresses the Combat Dummy's immunities and behavior."
-        }
-      ]
-    },
-    {
-      "thread_id": "1544411976489373766",
-      "channel_id": "1544082381076561930",
-      "title": "PlaytimeDB error in-game",
-      "url": "https://discord.com/channels/514343293761486848/1544411976489373766",
-      "archived": true,
-      "marked_created": false,
-      "marked_shipped": true,
-      "superseded_by": "",
-      "candidates": [
-        {
-          "id": "lag-issue-with-playtimedb-reported",
-          "title": "Lag + Issue with playtimedb reported",
-          "score": 0.403,
-          "status": "awarded",
-          "shipped": true,
-          "by": "D:\\models\\Qwen3.6-35B-A3B-Q4_K_M.gguf",
-          "llm": "same",
-          "why": "SAME The roadmap item explicitly addresses the PlaytimeDB error and the associated lag reported in the thread."
-        },
-        {
-          "id": "per-character-playtime",
-          "title": "Track play time per character, not just per account",
-          "score": 0.345,
-          "status": "wip",
-          "shipped": false,
-          "by": "D:\\models\\Qwen3.6-35B-A3B-Q4_K_M.gguf",
-          "llm": "same",
-          "why": "SAME The roadmap item addresses the underlying data tracking issue (per-character vs. per-account) that causes the PlaytimeDB error described in the thread."
-        },
-        {
-          "id": "Discord-server-shout-integration",
-          "title": "Discord <-> NWN server shout integration",
-          "score": 0.307,
-          "status": "later",
-          "shipped": false,
-          "by": "D:\\models\\Qwen3.6-35B-A3B-Q4_K_M.gguf",
-          "llm": "different",
-          "why": "DIFFERENT The Discord thread reports a specific technical error with PlaytimeDB, while the roadmap item proposes a new feature for server shout integration."
-        },
-        {
-          "id": "ll-leveler-tumble",
-          "title": "Legendary Leveler: can't find Tumble",
-          "score": 0.305,
-          "status": "awarded",
-          "shipped": true,
-          "by": "D:\\models\\Qwen3.6-35B-A3B-Q4_K_M.gguf",
-          "llm": "different",
-          "why": "DIFFERENT The Discord report concerns a PlaytimeDB error, while the roadmap item addresses a Legendary Leveler skill selection bug."
-        },
-        {
-          "id": "kallrist-forge-negative-resistance",
-          "title": "Kallrist forge: negative-energy resistance for worn gear",
-          "score": 0.304,
-          "status": "manual",
-          "shipped": false,
-          "by": "D:\\models\\Qwen3.6-35B-A3B-Q4_K_M.gguf",
-          "llm": "different",
-          "why": "DIFFERENT The roadmap item describes a new forge mechanic for negative-energy resistance, while the thread reports a technical error with the PlaytimeDB feature."
-        }
-      ]
-    },
-    {
-      "thread_id": "1547323990983311370",
-      "channel_id": "1544082381076561930",
-      "title": "MeaningWave per character.",
-      "url": "https://discord.com/channels/514343293761486848/1547323990983311370",
-      "archived": true,
-      "marked_created": false,
-      "marked_shipped": true,
-      "superseded_by": "",
-      "candidates": [
-        {
-          "id": "mw-mixtape-per-character",
-          "title": "Meaningwave guide progress collides between characters with similar names",
-          "score": 0.383,
-          "status": "manual",
-          "shipped": false,
-          "by": "D:\\models\\Qwen3.6-35B-A3B-Q4_K_M.gguf",
-          "llm": "same",
-          "why": "SAME The roadmap item explicitly states that Meaningwave guide progress is now tracked per character, which directly addresses the reported issue of the reward not being available on other characters."
-        },
-        {
-          "id": "meaningwave-bardsong-not-firing",
-          "title": "Meaningwave Bardsong not firing",
-          "score": 0.429,
-          "status": "confirmed",
-          "shipped": false,
-          "by": "D:\\models\\Qwen3.6-35B-A3B-Q4_K_M.gguf",
-          "llm": "different",
-          "why": "DIFFERENT The report is about a per-character reward bug, while the roadmap item is about a specific character's ability not triggering."
-        },
-        {
-          "id": "newbie-starting-gear-01",
-          "title": "Newbie starting gear once per account",
-          "score": 0.371,
-          "status": "awarded",
-          "shipped": true,
-          "by": "D:\\models\\Qwen3.6-35B-A3B-Q4_K_M.gguf",
-          "llm": "different",
-          "why": "DIFFERENT The Discord report concerns a bug with the MeaningWave ability score ring, while the roadmap item describes a new starter gear gift system."
-        },
-        {
-          "id": "per-character-playtime",
-          "title": "Track play time per character, not just per account",
-          "score": 0.331,
-          "status": "wip",
-          "shipped": false,
-          "by": "D:\\models\\Qwen3.6-35B-A3B-Q4_K_M.gguf",
-          "llm": "different",
-          "why": "DIFFERENT The roadmap item tracks playtime statistics, while the report concerns a bug with character-specific reward eligibility."
-        },
-        {
-          "id": "missing-map-markers",
-          "title": "Missing map markers (add build gate)",
-          "score": 0.331,
-          "status": "awarded",
-          "shipped": true,
-          "by": "D:\\models\\Qwen3.6-35B-A3B-Q4_K_M.gguf",
-          "llm": "different",
-          "why": "DIFFERENT The Discord report concerns a bug with MeaningWave rewards not being per-character, while the roadmap item addresses missing map markers in the Weathertop area."
-        }
-      ]
-    },
-    {
-      "thread_id": "1545227465595560037",
-      "channel_id": "1544082381076561930",
-      "title": "Shapes are not merging items correctly",
-      "url": "https://discord.com/channels/514343293761486848/1545227465595560037",
-      "archived": false,
-      "marked_created": false,
-      "marked_shipped": false,
-      "superseded_by": "",
-      "candidates": [
-        {
-          "id": "tensors-transformation-not-merging-items-reliably",
-          "title": "Tensor's Transformation not merging items reliably",
-          "score": 0.496,
-          "status": "manual",
-          "shipped": false,
-          "by": "D:\\models\\Qwen3.6-35B-A3B-Q4_K_M.gguf",
-          "llm": "same",
-          "why": "SAME The roadmap item addresses the core issue of Tenser's Transformation failing to merge gear stats correctly."
-        },
-        {
-          "id": "balrog-not-healing",
-          "title": "Balrog not healing itself",
-          "score": 0.381,
-          "status": "unlikely",
-          "shipped": false,
-          "by": "D:\\models\\Qwen3.6-35B-A3B-Q4_K_M.gguf",
-          "llm": "different",
-          "why": "DIFFERENT The roadmap item concerns Balrog healing mechanics, while the report is about stat merging errors in Tenser's transformation."
-        },
-        {
-          "id": "persistant-map-exploration",
-          "title": "Persistant map exploration with xp reward",
-          "score": 0.353,
-          "status": "soon",
-          "shipped": false,
-          "by": "D:\\models\\Qwen3.6-35B-A3B-Q4_K_M.gguf",
-          "llm": "different",
-          "why": "DIFFERENT The roadmap item concerns map exploration rewards, while the report is about stat calculation errors in item merging."
-        },
-        {
-          "id": "concerning-hobbits",
-          "title": "Quest: Concerning Hobbits (Shire genealogy)",
-          "score": 0.351,
-          "status": "confirmed",
-          "shipped": false,
-          "by": "D:\\models\\Qwen3.6-35B-A3B-Q4_K_M.gguf",
-          "llm": "different",
-          "why": "DIFFERENT The roadmap item describes a new quest involving genealogy and rewards, which is unrelated to the bug report about stat merging mechanics in Tenser's transformation."
-        },
-        {
-          "id": "petrification-timeout-2",
-          "title": "Petrification timeout not working as expected",
-          "score": 0.35,
-          "status": "awarded",
-          "shipped": true,
-          "by": "D:\\models\\Qwen3.6-35B-A3B-Q4_K_M.gguf",
-          "llm": "different",
-          "why": "DIFFERENT The roadmap item addresses petrification timeouts, while the report concerns stat merging logic for Tenser's Transformation."
-        }
-      ]
-    },
     {
       "thread_id": "1546974113938149508",
       "channel_id": "1544082381076561930",
@@ -444,6 +10,8 @@
       "archived": false,
       "marked_created": false,
       "marked_shipped": false,
+      "author": "Rajmund (Ray)",
+      "author_id": "515968432525803541",
       "superseded_by": "",
       "candidates": [
         {
@@ -506,6 +74,8 @@
       "archived": false,
       "marked_created": false,
       "marked_shipped": false,
+      "author": "Distilled",
+      "author_id": "1408528846789021777",
       "superseded_by": "",
       "candidates": [
         {
@@ -568,6 +138,8 @@
       "archived": false,
       "marked_created": false,
       "marked_shipped": false,
+      "author": "Sync (Shync)",
+      "author_id": "139336304784703488",
       "superseded_by": "",
       "candidates": [
         {
@@ -630,6 +202,8 @@
       "archived": false,
       "marked_created": false,
       "marked_shipped": false,
+      "author": "-Methonash-",
+      "author_id": "209097087516672000",
       "superseded_by": "",
       "candidates": [
         {
@@ -692,6 +266,8 @@
       "archived": false,
       "marked_created": true,
       "marked_shipped": false,
+      "author": "Rajmund (Ray)",
+      "author_id": "515968432525803541",
       "superseded_by": "",
       "candidates": [
         {
@@ -754,6 +330,8 @@
       "archived": false,
       "marked_created": false,
       "marked_shipped": false,
+      "author": "-Methonash-",
+      "author_id": "209097087516672000",
       "superseded_by": "",
       "candidates": [
         {
@@ -816,6 +394,8 @@
       "archived": false,
       "marked_created": false,
       "marked_shipped": false,
+      "author": "HomelessSon (Server Admin)",
+      "author_id": "470399500356419587",
       "superseded_by": "",
       "candidates": [
         {
@@ -878,6 +458,8 @@
       "archived": false,
       "marked_created": false,
       "marked_shipped": false,
+      "author": "HomelessSon (Server Admin)",
+      "author_id": "470399500356419587",
       "superseded_by": "",
       "candidates": [
         {
@@ -940,6 +522,8 @@
       "archived": false,
       "marked_created": false,
       "marked_shipped": false,
+      "author": "HomelessSon (Server Admin)",
+      "author_id": "470399500356419587",
       "superseded_by": "",
       "candidates": [
         {
@@ -1002,6 +586,8 @@
       "archived": false,
       "marked_created": false,
       "marked_shipped": false,
+      "author": "Tukwut",
+      "author_id": "178400441191759873",
       "superseded_by": "",
       "candidates": [
         {
@@ -1064,6 +650,8 @@
       "archived": false,
       "marked_created": false,
       "marked_shipped": false,
+      "author": "Balendin (Balendin_2222)",
+      "author_id": "205526366614061056",
       "superseded_by": "",
       "candidates": [
         {
@@ -1126,6 +714,8 @@
       "archived": false,
       "marked_created": false,
       "marked_shipped": false,
+      "author": "-Methonash-",
+      "author_id": "209097087516672000",
       "superseded_by": "",
       "candidates": [
         {
@@ -1188,6 +778,8 @@
       "archived": false,
       "marked_created": false,
       "marked_shipped": false,
+      "author": "Rajmund (Ray)",
+      "author_id": "515968432525803541",
       "superseded_by": "",
       "candidates": [
         {
@@ -1250,6 +842,8 @@
       "archived": false,
       "marked_created": false,
       "marked_shipped": false,
+      "author": "Szescian82",
+      "author_id": "756141511917305898",
       "superseded_by": "",
       "candidates": [
         {
@@ -1312,6 +906,8 @@
       "archived": false,
       "marked_created": false,
       "marked_shipped": false,
+      "author": "Rajmund (Ray)",
+      "author_id": "515968432525803541",
       "superseded_by": "",
       "candidates": [
         {
@@ -1374,6 +970,8 @@
       "archived": false,
       "marked_created": false,
       "marked_shipped": false,
+      "author": "HomelessSon (Server Admin)",
+      "author_id": "470399500356419587",
       "superseded_by": "",
       "candidates": [
         {
@@ -1436,6 +1034,8 @@
       "archived": false,
       "marked_created": false,
       "marked_shipped": false,
+      "author": "Szescian82",
+      "author_id": "756141511917305898",
       "superseded_by": "",
       "candidates": [
         {
@@ -1498,6 +1098,8 @@
       "archived": false,
       "marked_created": false,
       "marked_shipped": false,
+      "author": "Balendin (Balendin_2222)",
+      "author_id": "205526366614061056",
       "superseded_by": "",
       "candidates": [
         {
@@ -1560,6 +1162,8 @@
       "archived": false,
       "marked_created": false,
       "marked_shipped": false,
+      "author": "-Methonash-",
+      "author_id": "209097087516672000",
       "superseded_by": "",
       "candidates": [
         {
@@ -1622,6 +1226,8 @@
       "archived": false,
       "marked_created": false,
       "marked_shipped": false,
+      "author": "Rajmund (Ray)",
+      "author_id": "515968432525803541",
       "superseded_by": "",
       "candidates": [
         {
@@ -1684,6 +1290,8 @@
       "archived": false,
       "marked_created": false,
       "marked_shipped": false,
+      "author": "Rajmund (Ray)",
+      "author_id": "515968432525803541",
       "superseded_by": "",
       "candidates": [
         {
@@ -1746,6 +1354,8 @@
       "archived": false,
       "marked_created": false,
       "marked_shipped": false,
+      "author": "HomelessSon (Server Admin)",
+      "author_id": "470399500356419587",
       "superseded_by": "",
       "candidates": [
         {
@@ -1808,6 +1418,8 @@
       "archived": false,
       "marked_created": false,
       "marked_shipped": false,
+      "author": "Rajmund (Ray)",
+      "author_id": "515968432525803541",
       "superseded_by": "",
       "candidates": [
         {
@@ -1870,6 +1482,8 @@
       "archived": false,
       "marked_created": false,
       "marked_shipped": false,
+      "author": "Rajmund (Ray)",
+      "author_id": "515968432525803541",
       "superseded_by": "",
       "candidates": [
         {
@@ -1932,6 +1546,8 @@
       "archived": true,
       "marked_created": false,
       "marked_shipped": false,
+      "author": "MΞЯLIИ (Freeman.TK)",
+      "author_id": "348950737721622541",
       "superseded_by": "",
       "candidates": [
         {
@@ -1994,6 +1610,8 @@
       "archived": false,
       "marked_created": false,
       "marked_shipped": false,
+      "author": "-Methonash-",
+      "author_id": "209097087516672000",
       "superseded_by": "",
       "candidates": [
         {
@@ -2056,6 +1674,8 @@
       "archived": false,
       "marked_created": false,
       "marked_shipped": false,
+      "author": "dormic",
+      "author_id": "393394998868967425",
       "superseded_by": "",
       "candidates": [
         {
@@ -2118,6 +1738,8 @@
       "archived": false,
       "marked_created": false,
       "marked_shipped": false,
+      "author": "MΞЯLIИ (Freeman.TK)",
+      "author_id": "348950737721622541",
       "superseded_by": "",
       "candidates": [
         {
@@ -2180,6 +1802,8 @@
       "archived": false,
       "marked_created": false,
       "marked_shipped": false,
+      "author": "Rajmund (Ray)",
+      "author_id": "515968432525803541",
       "superseded_by": "",
       "candidates": [
         {
@@ -2232,6 +1856,8 @@
       "archived": true,
       "marked_created": false,
       "marked_shipped": false,
+      "author": "-Methonash-",
+      "author_id": "209097087516672000",
       "superseded_by": "1547323990983311370",
       "candidates": []
     }

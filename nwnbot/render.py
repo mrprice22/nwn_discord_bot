@@ -46,6 +46,19 @@ from html.parser import HTMLParser
 # plan fixes Discord-bound text at 4000 so a link back to the editor always fits.
 DISCORD_TEXT_LIMIT = 4000
 
+# Discord's own interface assets, as opposed to something a player uploaded.
+# `discord.com/assets/<hash>.svg` is an emoji or an icon from the app's own
+# chrome, pasted in with the surrounding DOM. It carries no information once it
+# is out of the app, and rendering its URL as text drops a meaningless
+# 80-character link into the middle of a player-facing sentence.
+CHROME_IMAGE_HOSTS = ("discord.com/assets/", "cdn.discordapp.com/assets/")
+
+
+def is_chrome_image(url: str) -> bool:
+    """Whether this image is Discord's own furniture rather than content."""
+    return any(host in (url or "") for host in CHROME_IMAGE_HOSTS)
+
+
 # Signed, expiring attachment hosts — link only, never rehost.
 DISCORD_CDN_HOST = "cdn.discordapp.com"
 DISCORD_CDN_HOSTS = ("cdn.discordapp.com", "media.discordapp.net")
@@ -81,6 +94,8 @@ _SAFE_SCHEMES = ("http://", "https://", "mailto:")
 
 __all__ = [
     "CDN_EXPIRY_NOTE",
+    "CHROME_IMAGE_HOSTS",
+    "is_chrome_image",
     "DISCORD_CDN_HOST",
     "DISCORD_CDN_HOSTS",
     "DISCORD_TEXT_LIMIT",
@@ -478,6 +493,13 @@ def _walk(nodes: list, w: _MdWriter) -> None:
             w.rule()
         elif tag == "img":
             src = _safe_src(node.attrs.get("src", ""))
+            if src and is_chrome_image(src):
+                # Discord's own furniture, almost always an emoji that came
+                # along with a pasted message. Dropped rather than linked:
+                # there is nothing behind it worth opening, and as text it is a
+                # meaningless 80-character URL in the middle of a sentence a
+                # player will read.
+                continue
             if src:
                 if w.cur:
                     w.text(" ")
