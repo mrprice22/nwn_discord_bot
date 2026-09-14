@@ -73,6 +73,12 @@ class ThreadRef:
     #: Every message in the thread, so a "moved to <link>" note can be found.
     #: Only the text is needed, so this is deliberately not ForumMessage.
     messages: tuple[str, ...] = ()
+    #: Who opened the thread, resolved through the identity map where possible.
+    #: Carried so the review tab can say who to credit: an idea the admin wrote
+    #: first and a player later suggested independently is a real case, and the
+    #: credit decision needs a name in front of it, not a lookup.
+    author_id: str = ""
+    author: str = ""
 
     @property
     def marked_created(self) -> bool:
@@ -129,6 +135,8 @@ class Proposal:
             "archived": self.thread.archived,
             "marked_created": self.thread.marked_created,
             "marked_shipped": self.thread.marked_shipped,
+            "author": self.thread.author,
+            "author_id": self.thread.author_id,
             "superseded_by": self.superseded_by,
             "candidates": [dict(c) for c in self.candidates],
         }

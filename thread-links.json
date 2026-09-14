@@ -1,5 +1,5 @@
 {
-  "generated": "2026-09-14T13:12:33+00:00",
+  "generated": "2026-09-14T13:37:37+00:00",
   "model": "D:\\models\\Qwen3.6-35B-A3B-Q4_K_M.gguf",
   "proposals": [
     {
@@ -10,6 +10,7 @@
       "archived": false,
       "marked_created": true,
       "marked_shipped": false,
+      "superseded_by": "",
       "candidates": [
         {
           "id": "anaralia-spider-queen-second-drop",
@@ -71,6 +72,7 @@
       "archived": true,
       "marked_created": false,
       "marked_shipped": true,
+      "superseded_by": "",
       "candidates": [
         {
           "id": "combat-dummy-can-be-slain",
@@ -132,6 +134,7 @@
       "archived": true,
       "marked_created": false,
       "marked_shipped": true,
+      "superseded_by": "",
       "candidates": [
         {
           "id": "boss-enrages-after-killing-player",
@@ -193,6 +196,7 @@
       "archived": false,
       "marked_created": true,
       "marked_shipped": false,
+      "superseded_by": "",
       "candidates": [
         {
           "id": "bard-curse-song-not-lowering-concentration-skill",
@@ -254,6 +258,7 @@
       "archived": true,
       "marked_created": false,
       "marked_shipped": true,
+      "superseded_by": "",
       "candidates": [
         {
           "id": "lag-issue-with-playtimedb-reported",
@@ -315,6 +320,7 @@
       "archived": true,
       "marked_created": false,
       "marked_shipped": true,
+      "superseded_by": "",
       "candidates": [
         {
           "id": "mw-mixtape-per-character",
@@ -376,6 +382,7 @@
       "archived": false,
       "marked_created": false,
       "marked_shipped": false,
+      "superseded_by": "",
       "candidates": [
         {
           "id": "tensors-transformation-not-merging-items-reliably",
@@ -437,6 +444,7 @@
       "archived": false,
       "marked_created": false,
       "marked_shipped": false,
+      "superseded_by": "",
       "candidates": [
         {
           "id": "Card-mendard-drops-elronds-sword",
@@ -491,67 +499,6 @@
       ]
     },
     {
-      "thread_id": "1546659144457658419",
-      "channel_id": "1544082593362874469",
-      "title": "MeaningWave per character.",
-      "url": "https://discord.com/channels/514343293761486848/1546659144457658419",
-      "archived": true,
-      "marked_created": false,
-      "marked_shipped": false,
-      "candidates": [
-        {
-          "id": "mw-mixtape-per-character",
-          "title": "Meaningwave guide progress collides between characters with similar names",
-          "score": 0.389,
-          "status": "manual",
-          "shipped": false,
-          "by": "D:\\models\\Qwen3.6-35B-A3B-Q4_K_M.gguf",
-          "llm": "same",
-          "why": "SAME The roadmap item addresses the exact issue of MeaningWave progress not being tracked per character, which prevents players from obtaining the reward on multiple characters."
-        },
-        {
-          "id": "meaningwave-bardsong-not-firing",
-          "title": "Meaningwave Bardsong not firing",
-          "score": 0.429,
-          "status": "confirmed",
-          "shipped": false,
-          "by": "D:\\models\\Qwen3.6-35B-A3B-Q4_K_M.gguf",
-          "llm": "different",
-          "why": "DIFFERENT The thread requests a per-character mechanic for a reward, while the roadmap item reports a specific NPC ability failing to trigger."
-        },
-        {
-          "id": "newbie-starting-gear-01",
-          "title": "Newbie starting gear once per account",
-          "score": 0.373,
-          "status": "awarded",
-          "shipped": true,
-          "by": "D:\\models\\Qwen3.6-35B-A3B-Q4_K_M.gguf",
-          "llm": "different",
-          "why": "DIFFERENT The Discord report concerns the MeaningWave ability score ring, while the roadmap item describes a new starter gear gift."
-        },
-        {
-          "id": "per-character-playtime",
-          "title": "Track play time per character, not just per account",
-          "score": 0.333,
-          "status": "wip",
-          "shipped": false,
-          "by": "D:\\models\\Qwen3.6-35B-A3B-Q4_K_M.gguf",
-          "llm": "different",
-          "why": "DIFFERENT The roadmap item addresses playtime tracking, while the report concerns MeaningWave reward mechanics."
-        },
-        {
-          "id": "missing-map-markers",
-          "title": "Missing map markers (add build gate)",
-          "score": 0.331,
-          "status": "awarded",
-          "shipped": true,
-          "by": "D:\\models\\Qwen3.6-35B-A3B-Q4_K_M.gguf",
-          "llm": "different",
-          "why": "DIFFERENT The Discord report concerns a per-character limitation on MeaningWave rewards, while the roadmap item addresses missing map markers in the Weathertop area."
-        }
-      ]
-    },
-    {
       "thread_id": "1547346022223716432",
       "channel_id": "1544082381076561930",
       "title": "Party kill logged for solo kill",
@@ -559,6 +506,7 @@
       "archived": false,
       "marked_created": false,
       "marked_shipped": false,
+      "superseded_by": "",
       "candidates": [
         {
           "id": "bestiary-tracking",
@@ -620,6 +568,7 @@
       "archived": false,
       "marked_created": false,
       "marked_shipped": false,
+      "superseded_by": "",
       "candidates": [
         {
           "id": "add-more-weapons-quarterstafs-and-doublesided",
@@ -681,6 +630,7 @@
       "archived": false,
       "marked_created": false,
       "marked_shipped": false,
+      "superseded_by": "",
       "candidates": [
         {
           "id": "unlock-more-inacessible-creature",
@@ -742,6 +692,7 @@
       "archived": false,
       "marked_created": true,
       "marked_shipped": false,
+      "superseded_by": "",
       "candidates": [
         {
           "id": "ll-feats-dominion",
@@ -803,6 +754,7 @@
       "archived": false,
       "marked_created": false,
       "marked_shipped": false,
+      "superseded_by": "",
       "candidates": [
         {
           "id": "duration-divine-might-issue",
@@ -864,6 +816,7 @@
       "archived": false,
       "marked_created": false,
       "marked_shipped": false,
+      "superseded_by": "",
       "candidates": [
         {
           "id": "teleport-to-weathertop-doesnt-work-on-the-test-server",
@@ -925,6 +878,7 @@
       "archived": false,
       "marked_created": false,
       "marked_shipped": false,
+      "superseded_by": "",
       "candidates": [
         {
           "id": "add-custom-helmet-skins",
@@ -986,6 +940,7 @@
       "archived": false,
       "marked_created": false,
       "marked_shipped": false,
+      "superseded_by": "",
       "candidates": [
         {
           "id": "custom-races-bugged",
@@ -1047,6 +1002,7 @@
       "archived": false,
       "marked_created": false,
       "marked_shipped": false,
+      "superseded_by": "",
       "candidates": [
         {
           "id": "boss-enrages-after-killing-player",
@@ -1108,6 +1064,7 @@
       "archived": false,
       "marked_created": false,
       "marked_shipped": false,
+      "superseded_by": "",
       "candidates": [
         {
           "id": "harm-potions-for-undead",
@@ -1169,6 +1126,7 @@
       "archived": false,
       "marked_created": false,
       "marked_shipped": false,
+      "superseded_by": "",
       "candidates": [
         {
           "id": "Discord-server-shout-integration",
@@ -1230,6 +1188,7 @@
       "archived": false,
       "marked_created": false,
       "marked_shipped": false,
+      "superseded_by": "",
       "candidates": [
         {
           "id": "Discord-server-shout-integration",
@@ -1291,6 +1250,7 @@
       "archived": false,
       "marked_created": false,
       "marked_shipped": false,
+      "superseded_by": "",
       "candidates": [
         {
           "id": "balance-divine-might",
@@ -1352,6 +1312,7 @@
       "archived": false,
       "marked_created": false,
       "marked_shipped": false,
+      "superseded_by": "",
       "candidates": [
         {
           "id": "anaralia-spider-queen-second-drop",
@@ -1413,6 +1374,7 @@
       "archived": false,
       "marked_created": false,
       "marked_shipped": false,
+      "superseded_by": "",
       "candidates": [
         {
           "id": "add-custom-helmet-skins",
@@ -1474,6 +1436,7 @@
       "archived": false,
       "marked_created": false,
       "marked_shipped": false,
+      "superseded_by": "",
       "candidates": [
         {
           "id": "boss-enrages-after-killing-player",
@@ -1535,6 +1498,7 @@
       "archived": false,
       "marked_created": false,
       "marked_shipped": false,
+      "superseded_by": "",
       "candidates": [
         {
           "id": "party-xp-given-to-whole-party-issue",
@@ -1596,6 +1560,7 @@
       "archived": false,
       "marked_created": false,
       "marked_shipped": false,
+      "superseded_by": "",
       "candidates": [
         {
           "id": "hellball-needs-tuning",
@@ -1657,6 +1622,7 @@
       "archived": false,
       "marked_created": false,
       "marked_shipped": false,
+      "superseded_by": "",
       "candidates": [
         {
           "id": "summanus-chest-items",
@@ -1718,6 +1684,7 @@
       "archived": false,
       "marked_created": false,
       "marked_shipped": false,
+      "superseded_by": "",
       "candidates": [
         {
           "id": "rod-of-fast-combat",
@@ -1779,6 +1746,7 @@
       "archived": false,
       "marked_created": false,
       "marked_shipped": false,
+      "superseded_by": "",
       "candidates": [
         {
           "id": "weapon-master-quest",
@@ -1840,6 +1808,7 @@
       "archived": false,
       "marked_created": false,
       "marked_shipped": false,
+      "superseded_by": "",
       "candidates": [
         {
           "id": "balrog-mass-harm-review",
@@ -1901,6 +1870,7 @@
       "archived": false,
       "marked_created": false,
       "marked_shipped": false,
+      "superseded_by": "",
       "candidates": [
         {
           "id": "knock-spell-issue",
@@ -1962,6 +1932,7 @@
       "archived": true,
       "marked_created": false,
       "marked_shipped": false,
+      "superseded_by": "",
       "candidates": [
         {
           "id": "dead-marshes-need-more-mobs",
@@ -2023,6 +1994,7 @@
       "archived": false,
       "marked_created": false,
       "marked_shipped": false,
+      "superseded_by": "",
       "candidates": [
         {
           "id": "ll-feats-dominion",
@@ -2084,6 +2056,7 @@
       "archived": false,
       "marked_created": false,
       "marked_shipped": false,
+      "superseded_by": "",
       "candidates": [
         {
           "id": "bard-curse-song-is-op",
@@ -2145,6 +2118,7 @@
       "archived": false,
       "marked_created": false,
       "marked_shipped": false,
+      "superseded_by": "",
       "candidates": [
         {
           "id": "Character-Rebirths",
@@ -2206,6 +2180,7 @@
       "archived": false,
       "marked_created": false,
       "marked_shipped": false,
+      "superseded_by": "",
       "candidates": [
         {
           "id": "ammo-stack999",
@@ -2248,6 +2223,17 @@
           "why": "DIFFERENT The roadmap item concerns a boss fight mechanic, while the report discusses rogue sneak attack damage mechanics."
         }
       ]
+    },
+    {
+      "thread_id": "1546659144457658419",
+      "channel_id": "1544082593362874469",
+      "title": "MeaningWave per character.",
+      "url": "https://discord.com/channels/514343293761486848/1546659144457658419",
+      "archived": true,
+      "marked_created": false,
+      "marked_shipped": false,
+      "superseded_by": "1547323990983311370",
+      "candidates": []
     }
   ]
 }

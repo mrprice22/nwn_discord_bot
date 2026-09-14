@@ -696,13 +696,17 @@ def cmd_link(args: argparse.Namespace, env: Mapping[str, str],
         return forum, marks, snapshot
 
     forum, marks, snapshot = _asyncio.run(go())
+    players = cfg.PlayerMap.load(getattr(args, "players", None)
+                                 or cfg.Settings.from_env(env).players_path)
     threads = [linking.ThreadRef(
         id=t.id, channel_id=t.channel_id, title=t.title,
         body=(t.starter.content if t.starter else ""),
         url=t.url, archived=t.archived, reactions=marks.get(t.id, ()),
         # Every message, so a "moved to <link>" note left when an idea was
         # moved between the two forums is found. See ThreadRef.superseded_by.
-        messages=tuple(m.content for m in t.all_messages))
+        messages=tuple(m.content for m in t.all_messages),
+        author_id=t.author_id,
+        author=(players.ids.get(t.author_id) or t.author_name or ""))
         for t in forum.threads]
 
     proposals = linking.propose(threads, list(snapshot.ideas), judge,
