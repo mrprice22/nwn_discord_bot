@@ -928,7 +928,9 @@ def plan_discord_to_roadmap(roadmap: Snapshot, forum: ForumSnapshot,
                 candidates = _dupe_candidates(roadmap, ctx)
             best = _best_dupe(thread, candidates, ctx)
             echo = _best_dupe(thread, candidates, ctx, shipped=True)
-            new_id = _plan_new_idea(actions, thread, roadmap, view, ctx, minted)
+            new_id = _plan_new_idea(actions, thread, roadmap, view, ctx, minted,
+                                    candidates=_dupe_candidate_rows(
+                                        thread, candidates, ctx))
             if new_id and best is not None:
                 _plan_dupe_hint(actions, thread, new_id, best, view, ctx)
             if new_id and echo is not None:
@@ -957,7 +959,8 @@ def _review(actions: list[Action], view: StoreView, kind: str, subject: str,
 
 def _plan_new_idea(actions: list[Action], thread: ForumThread, roadmap: Snapshot,
                    view: StoreView, ctx: PlanContext, minted: list[str],
-                   dupe_of: str | None = None) -> str | None:
+                   dupe_of: str | None = None,
+                   candidates: Sequence[Mapping[str, Any]] = ()) -> str | None:
     """The create-idea branch. Every unknown is a review item, never a guess."""
     if thread.archived or thread.locked:
         # A thread that was already closed before the bot ever saw it is
@@ -1025,6 +1028,8 @@ def _plan_new_idea(actions: list[Action], thread: ForumThread, roadmap: Snapshot
     # Awaiting the admin's approval. Cleared in the editor, never here: the bot
     # can say "someone should look at this" and can never answer it.
     idea["triage"] = True
+    if candidates:
+        idea["dupe_candidates"] = [dict(c) for c in candidates]
     if dupe_of:  # [b9-dupes] only; b6 never sets this.
         idea["dupe_of"] = dupe_of
     actions.append(CreateIdea(idea=idea, thread_id=thread.id,
@@ -1090,6 +1095,35 @@ def _best_dupe(thread: ForumThread, candidates: Sequence[dupes.Prepared],
         return None
     best = ranked[0]
     return best if best.value >= ctx.dupe_low else None
+
+
+def _dupe_candidate_rows(thread: ForumThread, candidates: Sequence[dupes.Prepared],
+                         ctx: PlanContext) -> list[dict]:
+    """The ranked suggestions to store on a newly filed idea.
+
+    Written so the approval tab can show them without re-running a scorer in a
+    browser. Advisory only: the bot never writes ``dupe_of``.
+
+    Shipped matches are included and marked ``kind: "echo"``. They are NOT
+    merge targets -- the admin does not reopen an awarded idea -- but a report
+    that resembles delivered work is usually a regression in it, and that is
+    worth seeing next to the report rather than discovering later.
+    """
+    rows: list[dict] = []
+    for shipped in (False, True):
+        pool = tuple(c for c in candidates if c.shipped is shipped)
+        if not pool:
+            continue
+        for cand in dupes.rank(thread.title, thread.body, pool,
+                               tag_names=thread.tag_names,
+                               title_weight=ctx.dupe_title_weight,
+                               limit=ctx.dupe_candidates):
+            if cand.value < ctx.dupe_low:
+                continue
+            rows.append({"id": cand.idea_id, "title": cand.title,
+                         "score": round(cand.value, 3),
+                         "kind": "echo" if shipped else "candidate"})
+    return rows
 
 
 def _plan_dupe_hint(actions: list[Action], thread: ForumThread, idea_id: str,

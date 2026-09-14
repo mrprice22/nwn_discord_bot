@@ -66,8 +66,15 @@ and is superseded.
 - Merit value comes from `type`: Defect 1, Enhancement 2, Exploit 3.
 - **Duplicates are already modelled**: there is no vote or `+1` counter. A second submitter of
   the same idea gets their **own idea row** carrying `dupe_of: <canonical-id>` and their own
-  `player:`, which is how they still earn merit. `gen-roadmap.py` folds the dupe row into the
-  canonical item's card. So "merge" means *mint a dupe row*, never *edit the original*.
+  `player:`. `gen-roadmap.py` folds the dupe row into the canonical item's card. So "merge"
+  means *mint a dupe row*, never *edit the original*.
+  **Corrected 2026-09-14 — this used to read "which is how they still earn merit". It does
+  not.** `_merit_write` (`roadmap-editor.py:3011`) pays `idea["player"]`, once per row, and only
+  the canonical row is ever marked `merit_awarded`; `merge_dupes` (`gen-roadmap.py:427`) folds a
+  dupe's player into `_requesters`, which is *credit on the card*, not merit. The admin's rule:
+  merit for the fix goes to the original report, and any player can still earn merit by helping
+  test it when it ships. This makes "propose, never auto-merge" more important than the original
+  reasoning knew — a wrong merge really does cost someone merit.
 - **Tests run from `.venv/`.** System Python is 3.14.7 and has `aiohttp`, `PyYAML` and
   `discord.py` but *not* `pytest`. The repo carries a gitignored `.venv`
   (`python -m venv --system-site-packages .venv`); run the suite as

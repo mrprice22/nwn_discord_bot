@@ -1326,3 +1326,58 @@ def test_the_duplicate_message_does_not_promise_merit_to_the_reporter():
     assert "still counts towards merit" not in text
     assert "credited as a requester" in text
     assert "helping test it" in text
+
+
+# ==========================================================================
+# dupe_candidates: what the approval tab reads. Advisory, never a merge.
+# ==========================================================================
+
+def _cands(plan):
+    created = [a for a in plan if isinstance(a, CreateIdea)]
+    return created[0].idea.get("dupe_candidates", []) if created else []
+
+
+def test_a_new_idea_carries_its_ranked_candidates():
+    plan = plan_discord_to_roadmap(
+        roadmap(EXISTING), forum(dupe_thread(title="Bank storage order", body="")),
+        None, DUPE_CTX)
+    rows = _cands(plan)
+    assert [r["id"] for r in rows] == ["forge-bank-tab-order-resets"]
+    assert rows[0]["kind"] == "candidate" and 0 < rows[0]["score"] <= 1
+
+
+def test_a_shipped_match_is_recorded_as_an_echo_not_a_candidate():
+    plan = plan_discord_to_roadmap(
+        roadmap(SHIPPED), forum(dupe_thread()), None, DUPE_CTX)
+    rows = _cands(plan)
+    assert [r["kind"] for r in rows] == ["echo"]
+
+
+def test_candidates_are_ranked_best_first():
+    near = idea("forge-bank-tab-order-resets", title="Bank tab order resets",
+                group="forge")
+    far = idea("forge-something-else", title="Bank tab ordering", group="forge")
+    plan = plan_discord_to_roadmap(
+        roadmap(near, far), forum(dupe_thread()), None, DUPE_CTX)
+    rows = _cands(plan)
+    assert len(rows) >= 2
+    assert rows == sorted(rows, key=lambda r: -r["score"])
+
+
+def test_no_candidates_means_no_field_at_all():
+    # An idea with nothing to compare against must not carry an empty list:
+    # `pruneEmpty` in the editor would drop it anyway, and an absent field
+    # reads correctly as "nothing was suggested".
+    plan = plan_discord_to_roadmap(
+        roadmap(), forum(dupe_thread(title="Totally unrelated thing", body="")),
+        None, DUPE_CTX)
+    created = [a for a in plan if isinstance(a, CreateIdea)]
+    assert "dupe_candidates" not in created[0].idea
+
+
+def test_candidates_never_become_a_dupe_of():
+    # The safety property, restated where it is easiest to break.
+    plan = plan_discord_to_roadmap(
+        roadmap(EXISTING), forum(dupe_thread()), None, DUPE_CTX)
+    created = [a for a in plan if isinstance(a, CreateIdea)]
+    assert "dupe_of" not in created[0].idea
