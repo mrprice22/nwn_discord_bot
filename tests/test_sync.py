@@ -558,21 +558,25 @@ def test_an_unchanged_status_posts_nothing():
     assert plan_roadmap_to_discord(roadmap(row), forum(thread()), view, CTX) == []
 
 
-def test_merit_awarded_posts_then_archives_and_locks():
+def test_merit_closes_the_thread_without_a_word():
+    """The award is announced elsewhere; the thread just closes.
+
+    The reporter already heard it ship, one status message earlier, so a
+    closing "this shipped" ends a conversation they were no longer having.
+    """
     row = idea(status="awarded", merit_awarded=True, discord={"thread_id": "t-1"})
     plan = plan_roadmap_to_discord(roadmap(row), forum(thread()), None, CTX)
-    assert doing(plan) == ["PostMessage", "ArchiveThread"]
-    post, = posts(plan)
-    assert post.kind == "merit"
-    assert "1 merit" in post.text                   # Defect is worth 1
+    assert doing(plan) == ["ArchiveThread"]
+    assert posts(plan) == []
     assert only(plan, ArchiveThread).locked is True
 
 
-def test_merit_message_counts_by_type():
-    row = idea(type="Exploit", status="awarded", merit_awarded=True,
-               discord={"thread_id": "t-1"})
+def test_the_silent_close_is_still_recorded_once():
+    """Without a message to hang the baseline on, the archive carries it."""
+    row = idea(status="awarded", merit_awarded=True, discord={"thread_id": "t-1"})
     plan = plan_roadmap_to_discord(roadmap(row), forum(thread()), None, CTX)
-    assert "3 merit points have" in plan[0].text
+    assert ("merit_awarded", "forge-thing") in {
+        (a.field_name, a.value) for a in plan if isinstance(a, RecordBaseline)}
 
 
 def test_unlikely_posts_and_archives_without_locking():
@@ -589,10 +593,12 @@ def test_the_close_path_follows_dupe_of_to_the_governing_item():
                 discord={"thread_id": "t-1"})
     plan = plan_roadmap_to_discord(roadmap(canonical, dupe), forum(thread()),
                                    None, CTX)
-    assert doing(plan) == ["PostMessage", "ArchiveThread"]
-    assert plan[0].idea_id == "dupe-row"          # posted in the dupe's own thread
-    assert plan[0].value == "canonical"           # but merit came from the canonical
-    assert "2 merit" in plan[0].text              # ...and from the canonical's type
+    # The close is silent now, but it must still be the CANONICAL's merit that
+    # triggers it -- that is what this test has always been about.
+    assert doing(plan) == ["ArchiveThread"]
+    adopted = only(plan, RecordBaseline)
+    assert adopted.idea_id == "dupe-row"          # closed in the dupe's own thread
+    assert adopted.value == "canonical"           # on the canonical's merit
 
 
 def test_the_close_path_follows_a_transitive_dupe_chain():
@@ -601,7 +607,7 @@ def test_the_close_path_follows_a_transitive_dupe_chain():
     leaf = idea("leaf", dupe_of="middle", hidden=True, discord={"thread_id": "t-1"})
     plan = plan_roadmap_to_discord(roadmap(canonical, middle, leaf), forum(thread()),
                                    None, CTX)
-    assert [a.value for a in plan if isinstance(a, PostMessage)] == ["canonical"]
+    assert [a.value for a in plan if isinstance(a, RecordBaseline)] == ["canonical"]
 
 
 def test_a_dupe_of_cycle_is_a_review_item_not_an_exception():
@@ -1044,8 +1050,10 @@ def test_a_confirmation_is_not_announced_when_the_thread_is_about_to_close():
     awarded = idea("canonical-item", title="Bank tab order resets", group="forge",
                    status="planned", type="Defect", hidden=True, merit_awarded=True)
     plan = _r2d(roadmap(awarded, confirmed()), forum(thread()), None, CTX)
-    assert doing(plan) == ["PostMessage", "ArchiveThread"]
-    assert plan.actions[0].kind == "merit"
+    # Nothing is said at all now: the close is silent, and the duplicate
+    # confirmation is still suppressed because the thread is about to shut.
+    assert doing(plan) == ["ArchiveThread"]
+    assert posts(plan) == []
 
 
 def test_removing_a_dupe_of_that_was_announced_is_a_review_item():
@@ -1816,3 +1824,56 @@ def test_a_duplicates_link_to_the_canonical_is_not_read_as_a_move():
     first = _r2d(world, forum(thread()), None, CTX)
     view = simulate(first, world, forum(thread()), StoreView.empty(), CTX)[2]
     assert _r2d(world, forum(thread()), view, CTX).writes == ()
+
+
+# ==========================================================================
+# Statuses that are the admin's business, not the reporter's.
+# ==========================================================================
+from nwnbot.sync import QUIET_STATUSES  # noqa: E402
+
+
+@pytest.mark.parametrize("status", sorted(QUIET_STATUSES))
+def test_an_internal_status_says_nothing(status):
+    # From the reporter's side a confirmed idea passing through "needs design
+    # input" is still in progress; the message would report a stall they can
+    # neither act on nor answer.
+    row = idea(status=status, discord={"thread_id": "t-1"})
+    plan = _plan(row, _view(triage=False, status="confirmed"))
+    assert posts(plan) == []
+
+
+@pytest.mark.parametrize("status", sorted(QUIET_STATUSES))
+def test_an_internal_status_is_adopted_not_ignored(status):
+    # Skipping without adopting would leave "confirmed" stored, so the move
+    # back out would be measured from the wrong place.
+    row = idea(status=status, discord={"thread_id": "t-1"})
+    plan = _plan(row, _view(triage=False, status="confirmed"))
+    assert ("status", status) in {(a.field_name, a.value) for a in plan
+                                  if isinstance(a, RecordBaseline)}
+
+
+def test_coming_back_out_of_an_internal_status_speaks_again():
+    row = idea(status="soon", discord={"thread_id": "t-1"})
+    posted = posts(_plan(row, _view(triage=False, status="design")))
+    assert len(posted) == 1
+    assert "scheduled to be done soon" in posted[0].text
+
+
+def test_shipped_in_testing_still_tells_the_reporter():
+    # The one post-confirmed status that IS the reporter's business: it is the
+    # thing they asked for, in their hands, and they can go and test it.
+    row = idea(status="implemented", discord={"thread_id": "t-1"})
+    posted = posts(_plan(row, _view(triage=False, status="confirmed")))
+    assert len(posted) == 1
+    assert "shipped and is being tested" in posted[0].text
+
+
+def test_no_status_message_is_silent_by_accident():
+    """Every status either has wording or is deliberately listed as quiet.
+
+    A status that fell through both would post APPROVED_OUTLOOK_DEFAULT -- a
+    promise of an update rather than an update -- and nothing would flag it.
+    """
+    from nwnbot.sync import APPROVED_OUTLOOK, STATUS_OUTLOOK, STATUSES
+    accounted = set(APPROVED_OUTLOOK) | set(STATUS_OUTLOOK) | set(QUIET_STATUSES)
+    assert set(STATUSES) - accounted == {"unlikely"}, "unlikely has its own path"

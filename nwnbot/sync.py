@@ -50,7 +50,6 @@ from typing import Any, Iterable, Iterator, Mapping, Sequence
 
 from nwnbot import config as cfg
 from nwnbot import dupes
-from nwnbot.config import MERIT_BY_TYPE
 from nwnbot.forum import ForumMessage, ForumSnapshot, ForumThread
 from nwnbot.render import md_to_html
 from nwnbot.roadmap import COMMENT_MAX_LEN, ForbiddenWrite, Snapshot
@@ -149,18 +148,22 @@ STATUS_MESSAGE = "Roadmap update — {outlook}{link}"
 #: What a status move means for the reporter. The approval lanes reuse
 #: APPROVED_OUTLOOK verbatim; these are the states approval cannot reach.
 STATUS_OUTLOOK = {
-    "manual": "this needs some hand-finishing before it can ship.",
-    "design": "this needs a design decision before it can be built.",
     "implemented": "this has shipped and is being tested.",
     "awarded": "this has shipped.",
 }
 
-#: Posted when the governing item's merit has really been paid. The thread is
-#: archived *and locked* straight after.
-MERIT_MESSAGE = (
-    "This has shipped, and {merit} merit {points} been awarded for it "
-    "({type}). Thanks for the report — closing this thread.{link}"
-)
+#: Statuses that move an idea WITHIN the work, and say nothing to the reporter.
+#:
+#: `design` and `manual` are stations on the admin's bench, not news: from the
+#: reporter's side the idea is still in progress, and "needs a design decision"
+#: reads as a stall they can neither act on nor answer. A confirmed idea that
+#: passes through them and out the other side should look, from the thread,
+#: like one continuous piece of work.
+#:
+#: They are ADOPTED rather than ignored: the baseline moves, so the next move
+#: out of them is measured from where the idea actually is. Skipping without
+#: adopting would leave the old status stored and announce a stale change.
+QUIET_STATUSES = frozenset({"design", "manual"})
 
 #: Posted when an item is marked `unlikely`. Archived, deliberately NOT locked
 #: — and the wording says so, because an unlocked archive is easy to miss.
@@ -1746,30 +1749,21 @@ def _plan_new_thread(actions: list[Action], idea: Mapping[str, Any],
 def _plan_merit_close(actions: list[Action], idea_id: str, thread: ForumThread,
                       governing: Mapping[str, Any], view: StoreView,
                       ctx: PlanContext) -> None:
-    """``merit_awarded: true`` => post the award, then archive **and lock**."""
+    """``merit_awarded: true`` => archive **and lock**, silently.
+
+    No message. The award is announced elsewhere, and a thread that closes on
+    "this shipped" reads as the end of a conversation the reporter was never
+    having -- they already heard it ship, one status message earlier.
+
+    The merit_awarded baseline is still recorded, so this is a one-time close
+    rather than something re-planned on every cycle. It rides on the archive
+    instead of on a message.
+    """
     canonical_id = str(governing.get("id") or idea_id)
-    item_type = str(governing.get("type") or "")
-    merit = MERIT_BY_TYPE.get(item_type, 0)
     if not view.unchanged(idea_id, "merit_awarded", canonical_id):
-        if not thread.archived:
-            # The link is resolved INSIDE this guard on purpose: _link_once
-            # records what it hands out, and an archived thread posts nothing.
-            link, adopt = _link_once(actions, view, ctx, idea_id,
-                                     ctx.idea_url(canonical_id))
-            text = MERIT_MESSAGE.format(
-                merit=merit, points="point has" if merit == 1 else "points have",
-                type=item_type or "item", link=link)
-            # Posting REOPENS an archived thread in Discord. The admin closes a
-            # thread when they move an idea between #bugs and #feature-requests
-            # rather than deleting it, so a closed thread is a deliberate state
-            # and often the OLD half of a pair. Announcing merit into one would
-            # resurrect it in front of players, next to the live thread that
-            # should have received the news.
-            actions.append(PostMessage(thread_id=thread.id, idea_id=idea_id,
-                                       text=text, kind="merit",
-                                       field_name="merit_awarded",
-                                       value=canonical_id))
-            actions.extend(adopt)
+        actions.append(RecordBaseline(idea_id=idea_id, field_name="merit_awarded",
+                                      value=canonical_id,
+                                      reason="closed without an announcement"))
     if not thread.archived:
         actions.append(ArchiveThread(thread_id=thread.id, idea_id=idea_id, locked=True,
                                      reason=f"merit awarded on {canonical_id}"))
@@ -1908,6 +1902,13 @@ def _plan_status_post(actions: list[Action], idea_id: str, idea: Mapping[str, An
         actions.append(RecordBaseline(idea_id=idea_id, field_name="status",
                                       value=status))
         return
+    if status in QUIET_STATUSES:
+        # Adopt it silently: the reporter hears nothing, and the NEXT move is
+        # still measured from here rather than from whatever came before.
+        actions.append(RecordBaseline(idea_id=idea_id, field_name="status",
+                                      value=status,
+                                      reason="internal status, not reported"))
+        return
     if thread.archived:
         return  # never post into an archived thread; reopening is the admin's call
     link, adopt = _link_once(actions, view, ctx, idea_id)
@@ -2020,7 +2021,6 @@ __all__ = [
     "DEFAULT_ACTION_CAP",
     "Effects",
     "ID_MAX_LEN",
-    "MERIT_MESSAGE",
     "NEW_IDEA_STATUS",
     "Plan",
     "PlanContext",
