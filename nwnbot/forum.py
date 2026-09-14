@@ -29,6 +29,45 @@ THREAD_CREATE_DELAY_SECONDS = 2.0
 
 
 @dataclass(frozen=True)
+class Attachment:
+    """One file posted with a Discord message.
+
+    ``url`` is the *signed* CDN link and it EXPIRES — measured at under 24
+    hours on this guild, and every screenshot pasted into roadmap.yaml before
+    the bot existed is already a 404. It is therefore only ever a fetch handle,
+    never something to store: rehosting is what makes an image survive, and
+    ``rehosted_url`` is where it lands once that has happened.
+    """
+
+    id: str
+    filename: str = ""
+    url: str = ""
+    content_type: str = ""
+    size: int = 0
+    #: Filled in once the bytes have been copied somewhere permanent. Until
+    #: then this is empty and nothing should be written into an idea.
+    rehosted_url: str = ""
+
+    def __post_init__(self) -> None:
+        if not self.id:
+            raise ValueError("Attachment needs an id")
+
+    @property
+    def is_image(self) -> bool:
+        return self.content_type.startswith("image/")
+
+    @property
+    def permanent_url(self) -> str:
+        """The link worth storing, or "" when there is not one yet.
+
+        Deliberately never falls back to ``url``: a signed CDN link that works
+        today and 404s tomorrow is worse than no link, because it looks fine
+        in review and rots silently afterwards.
+        """
+        return self.rehosted_url
+
+
+@dataclass(frozen=True)
 class ForumMessage:
     """One message in a forum thread.
 
@@ -44,10 +83,12 @@ class ForumMessage:
     created_at: str = ""          # ISO 8601, as Discord hands it over
     is_starter: bool = False
     edited: bool = False
+    attachments: tuple[Attachment, ...] = ()
 
     def __post_init__(self) -> None:
         if not self.id:
             raise ValueError("ForumMessage needs an id")
+        object.__setattr__(self, "attachments", tuple(self.attachments))
         if not self.author_id:
             raise ValueError(f"message {self.id}: author_id is required")
 
@@ -134,6 +175,7 @@ class ForumSnapshot:
 
 
 __all__ = [
+    "Attachment",
     "THREAD_CREATE_DELAY_SECONDS",
     "ForumMessage",
     "ForumSnapshot",

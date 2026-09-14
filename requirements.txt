@@ -4,3 +4,6 @@ aiohttp>=3.9
 PyYAML>=6.0
 pytest>=8.0
 pytest-asyncio>=0.23
+# Rehosting Discord screenshots: a 2.2MB PNG becomes a ~45KB WebP, which is
+# what makes keeping them affordable. See nwnbot/attachments.py.
+Pillow>=10.0

@@ -36,7 +36,8 @@ from dataclasses import dataclass, field
 from typing import Any, Iterable, Mapping
 
 from nwnbot import config as cfg
-from nwnbot.forum import ForumSnapshot, ForumThread, ForumMessage, ForumWriter, RecordingForumWriter
+from nwnbot.forum import (Attachment, ForumSnapshot, ForumThread, ForumMessage,
+                          ForumWriter, RecordingForumWriter)
 from nwnbot.roadmap import SaveConflict, Snapshot
 from nwnbot.store import StoreView
 from nwnbot.sync import (
@@ -605,6 +606,26 @@ def _applied_tag_names(thread: Any, tag_names: Mapping[str, str] | None
     return tuple(tag_names[str(i)] for i in raw if str(i) in tag_names)
 
 
+def _attachments_of(message: Any) -> tuple:  # pragma: no cover - needs a gateway
+    """The files posted with a message.
+
+    Worth stating because it is the whole reason this exists: a Discord message
+    whose only content is a screenshot has ``content == ""``. Reading just
+    ``content`` — which is what the bot did until now — dropped those messages
+    entirely and every image in every report with them.
+    """
+    out = []
+    for a in getattr(message, "attachments", None) or ():
+        out.append(Attachment(
+            id=str(getattr(a, "id", "")),
+            filename=str(getattr(a, "filename", "") or ""),
+            url=str(getattr(a, "url", "") or ""),
+            content_type=str(getattr(a, "content_type", "") or ""),
+            size=int(getattr(a, "size", 0) or 0),
+        ))
+    return tuple(out)
+
+
 async def _active_threads_via_rest(client: Any, channel: Any
                                    ) -> list:  # pragma: no cover - needs a gateway
     """The forum's open threads, fetched over REST rather than read from cache.
@@ -639,6 +660,7 @@ async def _read_thread(thread: Any, channel_id: str,
             created_at=message.created_at.isoformat() if message.created_at else "",
             is_starter=index == 0,
             edited=bool(getattr(message, "edited_at", None)),
+            attachments=_attachments_of(message),
         )
         if index == 0:
             starter = item
