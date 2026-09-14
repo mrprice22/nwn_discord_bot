@@ -1633,16 +1633,27 @@ def _approve_plan(status):
     return _plan(row, _view(triage=True, status=status))
 
 
-@pytest.mark.parametrize("status,label", [
-    ("confirmed", "in progress"),
-    ("wip", "up next"),
-    ("soon", "soon"),
-    ("later", "later"),
+@pytest.mark.parametrize("status,when", [
+    ("confirmed", "being worked on now"),
+    ("wip", "scheduled to be done next"),
+    ("soon", "scheduled to be done soon"),
+    ("later", "scheduled to be done later"),
     ("planned", "under consideration"),
 ])
-def test_the_approval_message_names_the_lane(status, label):
+def test_the_approval_message_answers_when(status, when):
+    # The reporter's question is "when", not "which column". An earlier version
+    # printed the board's lane name instead and read as "now **later**".
     text = posts(_approve_plan(status))[0].text
-    assert f"now **{label}**" in text
+    assert f"this is {when}." in text
+
+
+@pytest.mark.parametrize("status", sorted(APPROVED_OUTLOOK))
+def test_the_approval_message_never_names_a_board_lane(status):
+    # Naming the lane made the reporter learn the board's vocabulary to find
+    # out the one thing they wanted to know.
+    text = posts(_approve_plan(status))[0].text
+    for lane in ("In progress", "Up next", "Under consideration", "now **"):
+        assert lane not in text
 
 
 @pytest.mark.parametrize("status", sorted(APPROVED_OUTLOOK))
@@ -1662,4 +1673,5 @@ def test_a_lane_with_no_wording_promises_nothing_specific():
     # `design` is reachable by hand even though the queue does not offer it.
     text = posts(_approve_plan("design"))[0].text
     assert APPROVED_OUTLOOK_DEFAULT in text
-    assert "needs design input" in text
+    # ...and no invented timing, which is the whole risk of a default here.
+    assert "scheduled" not in text

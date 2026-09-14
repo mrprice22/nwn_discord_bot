@@ -224,25 +224,30 @@ DUPE_CONFIRMED_MESSAGE = (
 #: Posted once when the admin approves a report and it joins the published
 #: roadmap. The reporter has heard nothing since they filed it, so this is the
 #: first news they get: it happened, and updates will follow here.
-APPROVED_MESSAGE = (
-    "Added to the roadmap: **{title}** — now **{label}**. {outlook}{link}"
-)
+APPROVED_MESSAGE = "Added to the roadmap: **{title}** — {outlook}{link}"
 
-#: What each lane actually means for the reporter, because the label alone does
-#: not answer the question they are asking. "Under consideration" and "In
-#: progress" are both approvals, and telling someone their report is being
-#: worked on when it is sixth in a queue -- or the reverse -- is the kind of
-#: thing that stops people reporting at all.
+#: What each lane means for the reporter, in plain language.
+#:
+#: Deliberately NOT the board's lane name. "now **later**" read as an adverb --
+#: "now, later" -- and even fixed up to name the lane properly it still asked
+#: the reporter to learn the board's vocabulary in order to find out the one
+#: thing they want to know: when. So the lane name is gone and each sentence
+#: just answers that, in the admin's own words.
+#:
+#: Four of the five are the same sentence with the timing swapped, which is the
+#: point: a reporter who has filed twice can tell two outcomes apart at a
+#: glance, without reading carefully.
 APPROVED_OUTLOOK = {
-    "confirmed": "Work on it has started.",
-    "wip": "It is next in line to be worked on.",
-    "soon": "It is queued up to be worked on shortly.",
-    "later": "It is on the list, but not scheduled yet.",
-    "planned": "It is logged and being weighed against the rest of the backlog.",
+    "confirmed": "this is being worked on now.",
+    "wip": "this is scheduled to be done next.",
+    "soon": "this is scheduled to be done soon.",
+    "later": "this is scheduled to be done later.",
+    "planned": "this is under consideration.",
 }
 
-#: For a lane with no entry above. Says the true thing and promises nothing.
-APPROVED_OUTLOOK_DEFAULT = "You will get an update here as it moves."
+#: For a lane with no entry above. Says the true thing and promises nothing --
+#: in particular it does not invent a timing the admin has not committed to.
+APPROVED_OUTLOOK_DEFAULT = "you will get an update here as it moves."
 
 #: The internal note left on the *canonical* item when a duplicate is confirmed,
 #: so the extra demand shows up where the admin actually works. Never rendered.
@@ -1742,7 +1747,6 @@ def _plan_approved_post(actions: list[Action], idea_id: str, idea: Mapping[str, 
         thread_id=thread.id, idea_id=idea_id,
         text=APPROVED_MESSAGE.format(
             title=str(idea.get("title") or idea_id),
-            label=_status_label(status),
             outlook=APPROVED_OUTLOOK.get(status, APPROVED_OUTLOOK_DEFAULT),
             link=ctx._link(idea_id)),
         kind="approved", field_name="triage", value=pending))
