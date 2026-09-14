@@ -32,10 +32,10 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Any, Iterable, Mapping
 
-from nwnbot import config as cfg
+from nwnbot import attachments, config as cfg
 from nwnbot.forum import (Attachment, ForumSnapshot, ForumThread, ForumMessage,
                           ForumWriter, RecordingForumWriter)
 from nwnbot.roadmap import SaveConflict, Snapshot
@@ -681,6 +681,73 @@ async def _read_thread(thread: Any, channel_id: str,
     )
 
 
+async def rehost_images(forum: ForumSnapshot, store: Any, *,
+                        fetch: Any = None) -> ForumSnapshot:
+    """Copy every Discord image somewhere permanent; return an updated snapshot.
+
+    Runs BEFORE planning and returns plain data, which is what keeps the
+    planners pure: by the time one runs, an attachment either has a
+    ``rehosted_url`` or it does not, and no I/O can happen inside a plan.
+
+    A failure on one image is not a failure of the run. The report is worth
+    more than the screenshot, so a fetch or transcode error leaves that
+    attachment un-rehosted -- the planner then names it as not kept -- and
+    everything else carries on. The one thing never done is falling back to the
+    signed Discord url, which would look like success and 404 by tomorrow.
+    """
+    fetch = fetch or _fetch_bytes
+    cache: dict[str, str] = {}
+    threads = []
+    for thread in forum.threads:
+        messages = []
+        changed = False
+        for message in thread.all_messages:
+            if not any(a.is_image and not a.rehosted_url
+                       for a in message.attachments):
+                messages.append(message)
+                continue
+            done = []
+            for item in message.attachments:
+                if not item.is_image or item.rehosted_url or not item.url:
+                    done.append(item)
+                    continue
+                if item.url in cache:
+                    done.append(replace(item, rehosted_url=cache[item.url]))
+                    changed = True
+                    continue
+                try:
+                    raw = await fetch(item.url)
+                    url, _ = attachments.store_image(raw, store)
+                except Exception as exc:
+                    log.warning("could not rehost %s (%s): %s",
+                                attachments.safe_filename(item.filename),
+                                item.id, exc)
+                    done.append(item)
+                    continue
+                cache[item.url] = url
+                done.append(replace(item, rehosted_url=url))
+                changed = True
+            messages.append(replace(message, attachments=tuple(done)))
+        if not changed:
+            threads.append(thread)
+            continue
+        starter = messages[0] if thread.starter is not None else None
+        rest = messages[1:] if thread.starter is not None else messages
+        threads.append(replace(thread, starter=starter, messages=tuple(rest)))
+    return replace(forum, threads=tuple(threads))
+
+
+async def _fetch_bytes(url: str) -> bytes:  # pragma: no cover - network
+    """GET the attachment. No credentials: a signed CDN url carries its own."""
+    import aiohttp
+
+    timeout = aiohttp.ClientTimeout(total=60)
+    async with aiohttp.ClientSession(timeout=timeout) as session:
+        async with session.get(url) as response:
+            response.raise_for_status()
+            return await response.read()
+
+
 @dataclass
 class LiveSource(SnapshotSource):  # pragma: no cover - needs a gateway
     """The production snapshot pair: one roadmap fetch, one forum sweep."""
@@ -689,11 +756,17 @@ class LiveSource(SnapshotSource):  # pragma: no cover - needs a gateway
     discord_client: Any
     channel_ids: tuple[str, ...] = ()
     bot_user_id: str = ""
+    #: Where rehosted screenshots go. ``None`` disables rehosting: images are
+    #: then reported as present-but-not-kept rather than written as a signed
+    #: link that dies within the day.
+    image_store: Any = None
 
     async def snapshots(self) -> tuple[Snapshot, ForumSnapshot]:
         roadmap = await self.roadmap_client.fetch()
         forum = await build_forum_snapshot(self.discord_client, self.channel_ids,
                                            self.bot_user_id)
+        if self.image_store is not None:
+            forum = await rehost_images(forum, self.image_store)
         return roadmap, forum
 
 
@@ -701,6 +774,7 @@ __all__ = [
     "DiscordForumWriter",
     "EVENT_DEBOUNCE_SECONDS",
     "EventFunnel",
+    "rehost_images",
     "LiveSource",
     "RECONCILE_INTERVAL_SECONDS",
     "REVIEW_SAVE_CONFLICT",

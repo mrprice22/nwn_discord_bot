@@ -142,6 +142,19 @@ THREAD_BODY = "{body}{link}"
 #: only the admin ever sees the `comments` list.
 COMMENT_TEMPLATE = "Discord — {author}{where}:\n\n{body}"
 
+#: Images carried over from a Discord message, appended to the internal comment.
+#: Only ever REHOSTED urls: the signed Discord link expires inside a day, and
+#: writing one would look correct in review and 404 later (see
+#: nwnbot/attachments.py). Internal-only text — the `comments` list is never
+#: rendered publicly.
+ATTACHMENT_BLOCK = "\n\nImages:\n{lines}"
+ATTACHMENT_LINE = "- {url}"
+#: An image that could not be rehosted. Named rather than skipped silently, so
+#: the admin knows the report had a screenshot and that it is now only in
+#: Discord — and deliberately WITHOUT the signed link, which would be dead by
+#: the time anyone clicked it.
+ATTACHMENT_LOST = "- ({filename} — not rehosted; see the thread, the Discord link expires)"
+
 #: Appended to a Discord-bound message as a link back to the item.
 LINK_SUFFIX = "\n\n{url}"
 
@@ -993,7 +1006,7 @@ def _plan_new_idea(actions: list[Action], thread: ForumThread, roadmap: Snapshot
                               channel_id=thread.channel_id))
 
     starter = thread.starter
-    if starter is not None and starter.content.strip():
+    if starter is not None and _worth_carrying(starter):
         actions.append(_comment_action(idea_id, thread, starter, ctx))
 
     # The id, so the caller can tell an idea was really minted. Every guard
@@ -1139,8 +1152,41 @@ def _comment_action(idea_id: str, thread: ForumThread, message: ForumMessage,
     text = COMMENT_TEMPLATE.format(
         author=message.author_name or message.author_id,
         where=where, body=message.content.strip())
+    text += _attachment_block(message)
     return AppendComment(idea_id=idea_id, text=text, thread_id=thread.id,
                          message_id=message.id)
+
+
+def _worth_carrying(message: ForumMessage) -> bool:
+    """Whether a message has anything to record on the idea.
+
+    Text OR an image. Testing ``content`` alone silently dropped every
+    screenshot-only post -- Discord sends those with ``content == ""`` -- which
+    is the single most common shape of a bug report: a sentence in one message
+    and the evidence in the next.
+    """
+    if message.content.strip():
+        return True
+    return any(a.is_image for a in message.attachments)
+
+
+def _attachment_block(message: ForumMessage) -> str:
+    """The images from one message, as permanent links. "" when there are none.
+
+    Reads ``permanent_url`` only, which is empty until the bytes have actually
+    been copied somewhere that outlives the signed CDN link. Rehosting happens
+    before planning precisely so this stays a pure read.
+    """
+    lines = []
+    for item in message.attachments:
+        if not item.is_image:
+            continue
+        if item.permanent_url:
+            lines.append(ATTACHMENT_LINE.format(url=item.permanent_url))
+        else:
+            lines.append(ATTACHMENT_LOST.format(
+                filename=item.filename or item.id))
+    return ATTACHMENT_BLOCK.format(lines="\n".join(lines)) if lines else ""
 
 
 def _plan_thread_replies(actions: list[Action], thread: ForumThread, idea_id: str,
@@ -1150,7 +1196,7 @@ def _plan_thread_replies(actions: list[Action], thread: ForumThread, idea_id: st
         # Layer one: anything the bot itself said is not news.
         if bot_user_id and message.author_id == bot_user_id:
             continue
-        if not message.content.strip():
+        if not _worth_carrying(message):
             continue
         field_name = f"comment:{message.id}"
         # Layer two: already carried over at this exact text.
@@ -1481,6 +1527,9 @@ __all__ = [
     "Action",
     "AppendComment",
     "ArchiveThread",
+    "ATTACHMENT_BLOCK",
+    "ATTACHMENT_LINE",
+    "ATTACHMENT_LOST",
     "COMMENT_TEMPLATE",
     "DUPE_CANONICAL_COMMENT",
     "DUPE_CONFIRMED_MESSAGE",

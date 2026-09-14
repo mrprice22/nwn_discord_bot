@@ -173,3 +173,145 @@ def test_storing_the_same_image_twice_uploads_once(tmp_path):
     second, _ = att.store_image(png(), store)
     assert first == second
     assert len(calls) == 1        # the retry is free, not a duplicate object
+
+
+# --------------------------------------------------------------------------
+# rehost_images: the I/O step that runs BEFORE planning, so planners stay pure.
+# --------------------------------------------------------------------------
+import pytest_asyncio  # noqa: E402,F401
+import pytest as _pytest  # noqa: E402
+
+from nwnbot.bot import rehost_images  # noqa: E402
+from nwnbot.forum import (Attachment, ForumMessage, ForumSnapshot,  # noqa: E402
+                          ForumThread)
+
+
+def _snapshot(*atts, content="look"):
+    starter = ForumMessage(id="m-1", author_id="u-1", content=content,
+                           is_starter=True, attachments=atts)
+    return ForumSnapshot((ForumThread(id="t-1", channel_id="c-1", title="T",
+                                      author_id="u-1", starter=starter),))
+
+
+def _img(**kw):
+    kw.setdefault("content_type", "image/png")
+    kw.setdefault("url", "https://cdn.discordapp.com/a/b/c.png?ex=1&hm=2")
+    return Attachment(id=kw.pop("id", "a-1"), **kw)
+
+
+def _atts_of(snap):
+    return snap.threads[0].starter.attachments
+
+
+@_pytest.mark.asyncio
+async def test_rehosting_fills_in_the_permanent_url(tmp_path):
+    store = att.LocalStore(tmp_path, base_url="https://img.example")
+
+    async def fetch(url):
+        return png()
+
+    out = await rehost_images(_snapshot(_img()), store, fetch=fetch)
+    url = _atts_of(out)[0].rehosted_url
+    assert url.startswith("https://img.example/discord/") and url.endswith(".webp")
+
+
+@_pytest.mark.asyncio
+async def test_a_fetch_failure_leaves_the_image_un_rehosted(tmp_path):
+    # The report is worth more than the screenshot: one bad image must not
+    # take down the run, and must NOT fall back to the signed url.
+    store = att.LocalStore(tmp_path, base_url="https://img.example")
+
+    async def fetch(url):
+        raise OSError("connection reset")
+
+    out = await rehost_images(_snapshot(_img()), store, fetch=fetch)
+    item = _atts_of(out)[0]
+    assert item.rehosted_url == ""
+    assert item.permanent_url == ""          # never the signed link
+
+
+@_pytest.mark.asyncio
+async def test_undecodable_bytes_leave_the_image_un_rehosted(tmp_path):
+    store = att.LocalStore(tmp_path, base_url="https://img.example")
+
+    async def fetch(url):
+        return b"not an image at all"
+
+    out = await rehost_images(_snapshot(_img()), store, fetch=fetch)
+    assert _atts_of(out)[0].rehosted_url == ""
+
+
+@_pytest.mark.asyncio
+async def test_one_failure_does_not_stop_the_others(tmp_path):
+    store = att.LocalStore(tmp_path, base_url="https://img.example")
+    good = "https://cdn.discordapp.com/good.png?ex=1"
+
+    async def fetch(url):
+        if url == good:
+            return png()
+        raise OSError("nope")
+
+    snap = _snapshot(_img(id="bad", url="https://cdn.discordapp.com/bad.png?ex=1"),
+                     _img(id="good", url=good))
+    out = await rehost_images(snap, store, fetch=fetch)
+    bad, ok = _atts_of(out)
+    assert bad.rehosted_url == "" and ok.rehosted_url != ""
+
+
+@_pytest.mark.asyncio
+async def test_the_same_url_is_fetched_once(tmp_path):
+    store = att.LocalStore(tmp_path, base_url="https://img.example")
+    seen = []
+
+    async def fetch(url):
+        seen.append(url)
+        return png()
+
+    same = "https://cdn.discordapp.com/same.png?ex=1"
+    out = await rehost_images(_snapshot(_img(id="a", url=same),
+                                        _img(id="b", url=same)), store, fetch=fetch)
+    assert len(seen) == 1
+    a, b = _atts_of(out)
+    assert a.rehosted_url == b.rehosted_url != ""
+
+
+@_pytest.mark.asyncio
+async def test_an_already_rehosted_image_is_not_fetched_again(tmp_path):
+    store = att.LocalStore(tmp_path, base_url="https://img.example")
+    seen = []
+
+    async def fetch(url):
+        seen.append(url)
+        return png()
+
+    snap = _snapshot(_img(rehosted_url="https://img.example/already.webp"))
+    out = await rehost_images(snap, store, fetch=fetch)
+    assert seen == []
+    assert _atts_of(out)[0].rehosted_url == "https://img.example/already.webp"
+
+
+@_pytest.mark.asyncio
+async def test_non_images_are_left_alone(tmp_path):
+    store = att.LocalStore(tmp_path, base_url="https://img.example")
+    seen = []
+
+    async def fetch(url):
+        seen.append(url)
+        return png()
+
+    snap = _snapshot(Attachment(id="z", filename="save.zip",
+                                content_type="application/zip",
+                                url="https://cdn.discordapp.com/z.zip?ex=1"))
+    await rehost_images(snap, store, fetch=fetch)
+    assert seen == []
+
+
+@_pytest.mark.asyncio
+async def test_a_snapshot_with_nothing_to_do_is_returned_unchanged(tmp_path):
+    store = att.LocalStore(tmp_path, base_url="https://img.example")
+    snap = _snapshot()
+
+    async def fetch(url):  # pragma: no cover - must not be called
+        raise AssertionError("should not fetch")
+
+    assert await rehost_images(snap, store, fetch=fetch) == snap

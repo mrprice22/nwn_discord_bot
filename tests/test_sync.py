@@ -100,9 +100,10 @@ def forum(*threads, bot_user_id=BOT) -> ForumSnapshot:
 
 
 def msg(message_id="m-1", *, author="u-1", content="it broke", starter=False,
-        edited=False) -> ForumMessage:
+        edited=False, attachments=()) -> ForumMessage:
     return ForumMessage(id=message_id, author_id=author, author_name="Shync",
-                        content=content, is_starter=starter, edited=edited)
+                        content=content, is_starter=starter, edited=edited,
+                        attachments=attachments)
 
 
 def kinds(plan: Plan) -> list[str]:
@@ -1131,3 +1132,77 @@ def test_an_open_idea_is_unaffected_by_the_rule():
     plan = plan_discord_to_roadmap(
         roadmap(EXISTING), forum(dupe_thread()), None, DUPE_CTX)
     assert review_kinds(plan) == [REVIEW_POSSIBLE_DUPE]
+
+
+# --------------------------------------------------------------------------
+# Attachments reaching the roadmap. Only ever the rehosted url: a signed
+# Discord link reviews fine today and 404s tomorrow, which is the failure the
+# whole rehosting path exists to prevent.
+# --------------------------------------------------------------------------
+from nwnbot.forum import Attachment  # noqa: E402
+
+SIGNED = "https://cdn.discordapp.com/attachments/1/2/x.png?ex=deadbeef&hm=abc"
+
+
+def _img(**kw):
+    return Attachment(id=kw.pop("id", "a-1"), content_type="image/png", **kw)
+
+
+def _thread_with(*atts, content="see screenshot"):
+    return thread("t-att", starter=msg("m-1", content=content, starter=True,
+                                       attachments=atts))
+
+
+def test_a_rehosted_image_reaches_the_comment():
+    plan = plan_discord_to_roadmap(
+        roadmap(), forum(_thread_with(_img(filename="a.png",
+                                           rehosted_url="https://img/a.webp"))),
+        None, CTX)
+    body = [a for a in plan if a.__class__.__name__ == "AppendComment"][0].text
+    assert "https://img/a.webp" in body
+
+
+def test_the_signed_discord_url_is_never_written():
+    # The single most important assertion in this file: storing `url` is what
+    # produced seven dead images in roadmap.yaml before the bot existed.
+    plan = plan_discord_to_roadmap(
+        roadmap(), forum(_thread_with(_img(filename="a.png", url=SIGNED))),
+        None, CTX)
+    body = [a for a in plan if a.__class__.__name__ == "AppendComment"][0].text
+    assert SIGNED not in body
+    assert "cdn.discordapp.com" not in body
+
+
+def test_an_un_rehosted_image_is_named_not_silently_dropped():
+    plan = plan_discord_to_roadmap(
+        roadmap(), forum(_thread_with(_img(filename="shot.png", url=SIGNED))),
+        None, CTX)
+    body = [a for a in plan if a.__class__.__name__ == "AppendComment"][0].text
+    assert "shot.png" in body and "not rehosted" in body
+
+
+def test_non_images_are_ignored():
+    plan = plan_discord_to_roadmap(
+        roadmap(), forum(_thread_with(Attachment(id="z", filename="save.zip",
+                                                 content_type="application/zip"))),
+        None, CTX)
+    body = [a for a in plan if a.__class__.__name__ == "AppendComment"][0].text
+    assert "save.zip" not in body and "Images:" not in body
+
+
+def test_a_message_with_no_attachments_is_unchanged():
+    plan = plan_discord_to_roadmap(roadmap(), forum(_thread_with()), None, CTX)
+    body = [a for a in plan if a.__class__.__name__ == "AppendComment"][0].text
+    assert "Images:" not in body
+
+
+def test_an_image_only_message_still_produces_a_comment():
+    # content == "" is exactly what Discord sends for a screenshot-only post,
+    # and what the old code dropped on the floor.
+    plan = plan_discord_to_roadmap(
+        roadmap(), forum(_thread_with(_img(filename="a.png",
+                                           rehosted_url="https://img/a.webp"),
+                                      content="")),
+        None, CTX)
+    comments = [a for a in plan if a.__class__.__name__ == "AppendComment"]
+    assert comments and "https://img/a.webp" in comments[0].text
