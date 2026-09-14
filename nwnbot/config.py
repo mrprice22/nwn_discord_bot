@@ -150,6 +150,14 @@ BOT_WRITABLE_TYPES: frozenset[str] = frozenset({BUGS_ITEM_TYPE, FEATURES_ITEM_TY
 #: construction-time refusal rather than a convention.
 CREATION_ONLY_FIELDS: frozenset[str] = frozenset({"type", "triage"})
 
+#: Who produced a ``dupe_candidates`` row, recorded on every entry.
+#:
+#: Not bookkeeping for its own sake: when a better model appears the question is
+#: "which suggestions are worth regenerating", and that is only answerable if
+#: each row says what made it. Bump the suffix when the scoring CHANGES, not
+#: when the file is edited — a stale id is worse than none.
+DUPE_SCORER_ID: str = "stdlib-token-v1"
+
 # --------------------------------------------------------------------------
 # Duplicate detection — [b9-dupes], answered by review item [r6]
 #
@@ -627,6 +635,7 @@ __all__ = [
     "DUPE_TITLE_WEIGHT",
     "BUGS_ITEM_TYPE",
     "CREATION_ONLY_FIELDS",
+    "DUPE_SCORER_ID",
     "ConfigError",
     "DEFAULT_DB_PATH",
     "DEFAULT_PLAYERS_PATH",

@@ -703,6 +703,9 @@ class PlanContext:
     # off in config: measured recall does not justify telling a reporter their
     # report may be a duplicate. The review entry is filed either way.
     dupe_post_in_thread: bool = False
+    #: Stamped onto every `dupe_candidates` row so a later model upgrade can
+    #: tell which suggestions predate it. An input like every other setting.
+    dupe_scorer: str = cfg.DUPE_SCORER_ID
     # [b8-backfill]. Who earns a Discord thread. An empty `staff_players` means
     # nobody is staff, so every open item qualifies — the pre-b8 behaviour, which
     # keeps every test written before this policy planning what it always did.
@@ -1122,7 +1125,8 @@ def _dupe_candidate_rows(thread: ForumThread, candidates: Sequence[dupes.Prepare
                 continue
             rows.append({"id": cand.idea_id, "title": cand.title,
                          "score": round(cand.value, 3),
-                         "kind": "echo" if shipped else "candidate"})
+                         "kind": "echo" if shipped else "candidate",
+                         "by": ctx.dupe_scorer})
     return rows
 
 

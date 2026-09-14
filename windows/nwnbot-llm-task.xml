@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-16"?>
+<!--
+  Task Scheduler definition for the local llama.cpp server that nwnbot asks
+  about duplicate ideas. This box is the bot box, so unlike nwnbot-task.xml
+  this one ships ENABLED and starts at logon: the model takes ~45s to load and
+  nothing about it is irreversible - it answers questions and writes nothing.
+
+  Reclaiming the machine to game on is windows\bots-stop.ps1, which stops and
+  DISABLES both this task and nwnbot; windows\bots-start.ps1 puts them back.
+  Desktop shortcuts for both are created by windows\make-shortcuts.ps1.
+
+  Fill in BOT_RUN_AS_USER and BOT_REPO_DIR before registering, exactly as for
+  nwnbot-task.xml.
+-->
+<Task version="1.4" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
+  <RegistrationInfo>
+    <Description>nwnbot-llm - llama.cpp server on 127.0.0.1:8080, for duplicate detection.</Description>
+    <URI>\nwnbot-llm</URI>
+  </RegistrationInfo>
+  <Triggers>
+    <LogonTrigger>
+      <Enabled>true</Enabled>
+    </LogonTrigger>
+  </Triggers>
+  <Principals>
+    <Principal id="Author">
+      <UserId>BOT_RUN_AS_USER</UserId>
+      <LogonType>InteractiveToken</LogonType>
+      <RunLevel>LeastPrivilege</RunLevel>
+    </Principal>
+  </Principals>
+  <Settings>
+    <Enabled>true</Enabled>
+    <MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy>
+    <RestartOnFailure>
+      <Interval>PT1M</Interval>
+      <Count>3</Count>
+    </RestartOnFailure>
+    <!-- Below the bot and well below the game: this is a background answerer. -->
+    <Priority>7</Priority>
+    <DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries>
+    <StopIfGoingOnBatteries>false</StopIfGoingOnBatteries>
+    <ExecutionTimeLimit>PT0S</ExecutionTimeLimit>
+    <AllowHardTerminate>true</AllowHardTerminate>
+    <StartWhenAvailable>false</StartWhenAvailable>
+    <IdleSettings>
+      <StopOnIdleEnd>false</StopOnIdleEnd>
+      <RestartOnIdle>false</RestartOnIdle>
+    </IdleSettings>
+  </Settings>
+  <Actions Context="Author">
+    <Exec>
+      <Command>powershell.exe</Command>
+      <Arguments>-NoProfile -ExecutionPolicy Bypass -File "windows\run-llama.ps1"</Arguments>
+      <WorkingDirectory>BOT_REPO_DIR</WorkingDirectory>
+    </Exec>
+  </Actions>
+</Task>

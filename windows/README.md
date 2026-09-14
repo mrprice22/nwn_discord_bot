@@ -77,3 +77,47 @@ decision.
   `CLAUDE-autopilot.md` were written against the Linux layout.
 - **Logging.** systemd sent stdout to the journal. Task Scheduler discards it; if you want a
   log, redirect inside `run-nwnbot.ps1` rather than in the task arguments.
+
+## The local LLM
+
+Duplicate detection asks a local model whether a new report is the same issue as
+an existing idea. It runs here, on this box, beside the bot.
+
+| | |
+|---|---|
+| Server | `llama-server.exe`, installed via `winget install ggml.llamacpp` |
+| Model | `D:\models\Qwen3.6-35B-A3B-Q4_K_M.gguf` (19 GB, 35B MoE with 3B active) |
+| Endpoint | `http://127.0.0.1:8080/v1` — OpenAI-compatible, loopback only |
+| Launcher | `windows\run-llama.ps1` |
+| Task | `nwnbot-llm`, at logon, **enabled** |
+
+Unlike `nwnbot`, this task ships enabled and starts itself: the model answers
+questions and writes nothing, so there is nothing to arm. It takes ~45s to load.
+
+Two measurements worth keeping, both taken on this hardware against real pairs
+from `roadmap.yaml`:
+
+- **~2.0s per duplicate judgement**, which is what makes per-idea judging at
+  intake affordable.
+- **Qwen3.6 is a reasoning model.** With thinking on, the answer lands in
+  `reasoning_content` and `content` comes back **empty** — a naive parser reads
+  every verdict as a negative and scores suspiciously well on the negatives. The
+  bot sends `chat_template_kwargs: {"enable_thinking": false}`; leave it that
+  way, and be suspicious of any agreement number that was measured without it.
+
+The bot never blocks on the model: if it is down, duplicate scoring falls back
+to the token scorer and says so in the run summary. `doctor` reports which model
+answered.
+
+## Reclaiming the box to game on
+
+Two desktop shortcuts, created by `windows\make-shortcuts.ps1`:
+
+- **Bots - stop (free the GPU)** — stops the LLM server and the bot, waits for
+  the memory to actually be released, and **disables** both scheduled tasks so a
+  reboot mid-session does not start them again underneath you.
+- **Bots - start** — re-enables both, starts them, and waits until the model
+  answers before telling you it is ready.
+
+Neither script touches `NWNBOT_DRY_RUN`. That lives in `.env` and is the
+live/not-live switch: starting the bot must never be the thing that arms it.
