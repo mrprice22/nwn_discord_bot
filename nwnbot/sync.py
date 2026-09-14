@@ -138,10 +138,22 @@ ID_MAX_LEN = 60
 # runs with NWNBOT_DRY_RUN=0.
 # --------------------------------------------------------------------------
 
-#: Posted in a thread when the linked item's status changes. The raw status id
-#: trails the label because it is the word the editor and the roadmap page use,
-#: so a player who goes looking finds the same term.
-STATUS_MESSAGE = "Roadmap update — this is now **{label}** ({status}).{link}"
+#: Posted in a thread when the linked item's status changes after approval.
+#:
+#: Same lesson as APPROVED_MESSAGE: "this is now **later** (later)" named the
+#: lane twice, in two vocabularies, and the label read as an adverb. It answers
+#: "when" now, in the same words the approval message used, so a reporter
+#: following one thread hears one consistent voice.
+STATUS_MESSAGE = "Roadmap update — {outlook}{link}"
+
+#: What a status move means for the reporter. The approval lanes reuse
+#: APPROVED_OUTLOOK verbatim; these are the states approval cannot reach.
+STATUS_OUTLOOK = {
+    "manual": "this needs some hand-finishing before it can ship.",
+    "design": "this needs a design decision before it can be built.",
+    "implemented": "this has shipped and is being tested.",
+    "awarded": "this has shipped.",
+}
 
 #: Posted when the governing item's merit has really been paid. The thread is
 #: archived *and locked* straight after.
@@ -1750,6 +1762,18 @@ def _plan_approved_post(actions: list[Action], idea_id: str, idea: Mapping[str, 
             outlook=APPROVED_OUTLOOK.get(status, APPROVED_OUTLOOK_DEFAULT),
             link=ctx._link(idea_id)),
         kind="approved", field_name="triage", value=pending))
+    # The approval message ALREADY said where it landed, so the status branch
+    # must not say it again on the next cycle. It would have: approving into a
+    # lane changes `status` too, and the baseline still holds whatever the idea
+    # was filed as. That produced a second, worse message right behind the
+    # first -- "Roadmap update — this is now **later** (later)."
+    #
+    # Adopting the status here is what makes the approval message the single
+    # announcement of the lane. A LATER move out of that lane is a real change
+    # and still posts, because this records the lane approved into, not a
+    # blanket suppression.
+    actions.append(RecordBaseline(idea_id=idea_id, field_name="status",
+                                  value=status, reason="announced by approval"))
     return True
 
 
@@ -1772,8 +1796,10 @@ def _plan_status_post(actions: list[Action], idea_id: str, idea: Mapping[str, An
         return  # never post into an archived thread; reopening is the admin's call
     actions.append(PostMessage(
         thread_id=thread.id, idea_id=idea_id,
-        text=STATUS_MESSAGE.format(status=status, label=_status_label(status),
-                                   link=ctx._link(idea_id)),
+        text=STATUS_MESSAGE.format(
+            outlook=STATUS_OUTLOOK.get(
+                status, APPROVED_OUTLOOK.get(status, APPROVED_OUTLOOK_DEFAULT)),
+            link=ctx._link(idea_id)),
         kind="status", field_name="status", value=status))
 
 
@@ -1904,6 +1930,7 @@ __all__ = [
     "STATE_ONLY",
     "STATUSES",
     "STATUS_MESSAGE",
+    "STATUS_OUTLOOK",
     "TERMINAL_STATUSES",
     "THREAD_BODY",
     "THREAD_HEADER",

@@ -517,7 +517,11 @@ def test_status_change_posts_in_the_thread():
     view = StoreView(hashes={("forge-thing", "status"): content_hash("planned")})
     plan = plan_roadmap_to_discord(roadmap(row), forum(thread()), view, CTX)
     assert kinds(plan) == ["PostMessage"]
-    assert plan[0].kind == "status" and "wip" in plan[0].text
+    # The message says what the move MEANS, not the status id -- "this is now
+    # **later** (later)" was the version that named the lane twice.
+    assert plan[0].kind == "status"
+    assert plan[0].text.startswith("Roadmap update — this is scheduled to be done next.")
+    assert "wip" not in plan[0].text
 
 
 def test_the_first_sighting_of_an_adopted_thread_is_quiet():
@@ -1675,3 +1679,32 @@ def test_a_lane_with_no_wording_promises_nothing_specific():
     assert APPROVED_OUTLOOK_DEFAULT in text
     # ...and no invented timing, which is the whole risk of a default here.
     assert "scheduled" not in text
+
+
+def test_approval_is_the_only_message_about_the_lane_it_landed_in():
+    """Approving into a lane must not also trigger a status message.
+
+    The bug: approving moves `status` as well as clearing `triage`, and the
+    stored baseline still held whatever the idea was filed as. So the approval
+    message was followed one cycle later by "Roadmap update — this is now
+    **later** (later)" — the same news, worse worded.
+    """
+    row = idea(status="later", discord={"thread_id": "t-1"})
+    view = _view(triage=True, status="planned")
+    plan = _plan(row, view)
+
+    posted = posts(plan)
+    assert len(posted) == 1 and posted[0].kind == "approved"
+    # ...and the lane it landed in is adopted, so the next cycle stays quiet.
+    adopted = {(a.field_name, a.value) for a in plan
+               if isinstance(a, RecordBaseline)}
+    assert ("status", "later") in adopted
+
+
+def test_a_move_out_of_the_approved_lane_still_posts():
+    """Adopting the approved lane must not silence genuine later moves."""
+    row = idea(status="soon", discord={"thread_id": "t-1"})
+    plan = _plan(row, _view(triage=False, status="later"))
+    posted = posts(plan)
+    assert len(posted) == 1 and posted[0].kind == "status"
+    assert "scheduled to be done soon" in posted[0].text
