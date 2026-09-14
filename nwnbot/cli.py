@@ -51,6 +51,7 @@ from nwnbot import config as cfg
 from nwnbot import dupes
 from nwnbot.bot import (
     RECONCILE_INTERVAL_SECONDS,
+    ROADMAP_POLL_SECONDS,
     RunReport,
     StaticSource,
     SyncEngine,
@@ -1118,7 +1119,8 @@ def cmd_serve(args: argparse.Namespace, env: Mapping[str, str],
     if not token:
         raise SystemExit(f"{cfg.ENV_DISCORD_BOT_TOKEN} is not set")
     print(f"serve: dry_run={dry_run}, reconcile every "
-          f"{RECONCILE_INTERVAL_SECONDS}s", file=out)
+          f"{RECONCILE_INTERVAL_SECONDS}s, roadmap poll every "
+          f"{ROADMAP_POLL_SECONDS:g}s", file=out)
 
     async def go() -> None:
         store = Store(args.db) if args.db else None
@@ -1131,7 +1133,10 @@ def cmd_serve(args: argparse.Namespace, env: Mapping[str, str],
             engine = SyncEngine(source, context, store=store,
                                 roadmap_client=roadmap_client, dry_run=dry_run,
                                 strict_config=True)
-            client = make_client(engine)
+            # The roadmap cannot push, so the bot asks. Without this an
+            # approval waits for the next reconcile sweep -- up to 15 minutes
+            # of silence in the reporter's thread.
+            client = make_client(engine, roadmap_client=roadmap_client)
             source.discord_client = client
             engine.forum_writer = (DiscordForumWriter(client) if not dry_run
                                    else RecordingForumWriter())

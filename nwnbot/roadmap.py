@@ -66,6 +66,7 @@ from typing import Any, Callable, Iterable, Mapping, MutableMapping, Sequence
 # Endpoint paths, so callers do not spell them by hand.
 API_DATA = "/api/data"
 API_SAVE = "/api/save"
+API_VERSION = "/api/version"
 API_IDEA_COMMENT = "/api/idea-comment"
 API_LOGIN = "/api/login"
 
@@ -489,6 +490,26 @@ class RoadmapClient:
         """``GET /api/data`` — the whole document plus the server's baseline."""
         return Snapshot.from_payload(await self._request("GET", API_DATA))
 
+    async def version(self) -> str:
+        """``GET /api/version`` — a content hash of roadmap.yaml, or "".
+
+        The cheap half of :meth:`fetch`. The whole document is over a megabyte
+        and the roadmap has no way to push an event, so noticing an approval
+        promptly means asking repeatedly; asking for this instead of the
+        document is what makes a 30-second cadence reasonable.
+
+        It hashes the FILE, so a hand-edit or a Claude edit moves it just as an
+        editor save does — the bot is watching the roadmap, not the editor UI.
+
+        Returns "" rather than raising: a poll that fails is a poll skipped,
+        and the reconcile sweep is still underneath it.
+        """
+        try:
+            body = await self._request("GET", API_VERSION)
+        except Exception:
+            return ""
+        return str(body.get("version") or "")
+
     async def save(self, mutate: Callable[[list[dict]], Any], *,
                    snapshot: Snapshot | None = None) -> SaveResult:
         """Apply ``mutate`` to a fresh copy of the ideas array and post it.
@@ -593,6 +614,7 @@ __all__ = [
     "API_IDEA_COMMENT",
     "API_LOGIN",
     "API_SAVE",
+    "API_VERSION",
     "COMMENT_MAX_LEN",
     "FORBIDDEN_BLOCKS",
     "FORBIDDEN_FIELDS",

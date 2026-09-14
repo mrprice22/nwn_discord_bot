@@ -74,6 +74,22 @@ RECONCILE_INTERVAL_SECONDS = 15 * 60
 # backstop if a burst is ever missed entirely.
 EVENT_DEBOUNCE_SECONDS = 5.0
 
+# How often to ask the roadmap whether its file has changed, in seconds.
+#
+# The two directions had wildly different latency and only one of them was
+# visible: Discord PUSHES events, so a new report is picked up in seconds, while
+# the roadmap can push nothing, so an approval waited for the next 15-minute
+# sweep. To the admin that reads as the approval being broken -- they click,
+# they check the thread, nothing is there.
+#
+# So: ask for a content hash (`/api/version`, a few dozen bytes) on this cadence
+# and only run a real cycle when it moves. One small request a minute against a
+# LAN service, and an approval reaches the reporter inside a minute instead of
+# up to fifteen. The reconcile sweep stays as the backstop -- this is an
+# optimisation on top of it, never a replacement for it, which is why a failed
+# poll is simply skipped.
+ROADMAP_POLL_SECONDS = 30.0
+
 #: Review kind recorded when /api/save comes back `conflict: true` twice.
 #: [r10]'s proposed answer: record it, report it, exit non-zero. No retry (the
 #: client already retried once), and never a force.
@@ -412,10 +428,21 @@ class EventFunnel:
 
     def __init__(self, engine: SyncEngine, *,
                  debounce: float = EVENT_DEBOUNCE_SECONDS,
-                 reconcile_interval: float = RECONCILE_INTERVAL_SECONDS) -> None:
+                 reconcile_interval: float = RECONCILE_INTERVAL_SECONDS,
+                 roadmap_poll: float = ROADMAP_POLL_SECONDS,
+                 roadmap_client: Any = None) -> None:
         self.engine = engine
         self.debounce = debounce
         self.reconcile_interval = reconcile_interval
+        self.roadmap_poll = roadmap_poll
+        #: Only for the version poll. None disables it, which is what every
+        #: offline test and `--fixture` gets: no client, no polling, and the
+        #: reconcile loop alone -- exactly the behaviour before this existed.
+        self.roadmap_client = roadmap_client
+        #: Last seen roadmap file hash. None means "not asked yet", which is
+        #: NOT the same as "unchanged": the first answer must be adopted
+        #: silently, or every startup would plan a cycle it does not need.
+        self._roadmap_version: str | None = None
         self.reasons: list[str] = []
         self.cycles: list[RunReport] = []
         self._wake = asyncio.Event()
@@ -455,9 +482,39 @@ class EventFunnel:
             # Not a second code path: the timer pulls the same lever an event does.
             self.request_cycle("reconcile")
 
+    async def poll_roadmap_once(self) -> bool:
+        """Ask for the roadmap's content hash; wake the bot if it moved.
+
+        Returns whether a cycle was requested, which is what the tests assert
+        on. Separate from the loop below so the decision is testable without a
+        clock: the loop is a sleep around this.
+        """
+        if self.roadmap_client is None:
+            return False
+        version = await self.roadmap_client.version()
+        if not version:
+            return False  # the poll failed; the reconcile sweep still covers it
+        first, self._roadmap_version = self._roadmap_version, version
+        if first is None or first == version:
+            return False
+        self.request_cycle("roadmap changed")
+        return True
+
+    async def roadmap_loop(self) -> None:  # pragma: no cover - driven by the loop
+        while True:
+            await asyncio.sleep(self.roadmap_poll)
+            try:
+                await self.poll_roadmap_once()
+            except Exception:
+                # Never let a poll failure kill the loop: a dead roadmap for a
+                # minute must not silently cost us every future poll.
+                log.exception("roadmap version poll failed; retrying next tick")
+
     def start(self) -> None:  # pragma: no cover - needs a running loop
         self._tasks = [asyncio.create_task(self.worker()),
                        asyncio.create_task(self.reconcile_loop())]
+        if self.roadmap_client is not None:
+            self._tasks.append(asyncio.create_task(self.roadmap_loop()))
         self.request_cycle("startup")
 
     async def stop(self) -> None:  # pragma: no cover - shutdown path
@@ -866,6 +923,7 @@ __all__ = [
     "summarise_new_threads",
     "LiveSource",
     "RECONCILE_INTERVAL_SECONDS",
+    "ROADMAP_POLL_SECONDS",
     "REVIEW_SAVE_CONFLICT",
     "RunReport",
     "SnapshotSource",

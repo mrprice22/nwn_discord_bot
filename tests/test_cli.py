@@ -954,3 +954,74 @@ def test_backfill_paces_the_batch(tmp_path, monkeypatch):
                        fixture=batch_world(tmp_path))
     assert code == cli.EXIT_OK
     assert slept == [2.0] * 5, "one wait between creations, none before the first"
+
+
+# ==========================================================================
+# The roadmap version poll — the roadmap cannot push, so the bot asks.
+# ==========================================================================
+class VersionSpy:
+    """A RoadmapClient stand-in that answers `version()` from a script."""
+
+    def __init__(self, *answers):
+        self.answers = list(answers)
+        self.calls = 0
+
+    async def version(self):
+        self.calls += 1
+        return self.answers.pop(0) if self.answers else ""
+
+
+def _polling_funnel(*answers):
+    return botmod.EventFunnel(CountingEngine(), debounce=0,
+                              roadmap_client=VersionSpy(*answers))
+
+
+@pytest.mark.asyncio
+async def test_the_first_version_seen_is_adopted_silently():
+    # Otherwise every startup would plan a cycle it does not need, and a
+    # restart loop would mean a cycle per restart.
+    funnel = _polling_funnel("aaa")
+    assert await funnel.poll_roadmap_once() is False
+
+
+@pytest.mark.asyncio
+async def test_a_changed_version_wakes_the_bot():
+    funnel = _polling_funnel("aaa", "bbb")
+    await funnel.poll_roadmap_once()
+    assert await funnel.poll_roadmap_once() is True
+    assert funnel.reasons == ["roadmap changed"]
+
+
+@pytest.mark.asyncio
+async def test_an_unchanged_version_costs_nothing():
+    # The common case by far: the admin is not editing most of the time, and
+    # this is what makes a 30-second cadence affordable.
+    funnel = _polling_funnel("aaa", "aaa", "aaa")
+    for _ in range(3):
+        await funnel.poll_roadmap_once()
+    assert funnel.reasons == []
+
+
+@pytest.mark.asyncio
+async def test_a_failed_poll_is_skipped_not_treated_as_a_change():
+    # `version()` returns "" on failure. Treating that as a new value would
+    # plan a cycle on every blip, and then another when the roadmap came back.
+    funnel = _polling_funnel("aaa", "", "aaa")
+    await funnel.poll_roadmap_once()
+    assert await funnel.poll_roadmap_once() is False
+    assert await funnel.poll_roadmap_once() is False
+    assert funnel.reasons == []
+
+
+@pytest.mark.asyncio
+async def test_no_roadmap_client_means_no_polling():
+    # `--fixture` and every offline test: the reconcile loop alone, exactly as
+    # it behaved before the poll existed.
+    funnel = botmod.EventFunnel(CountingEngine(), debounce=0)
+    assert await funnel.poll_roadmap_once() is False
+
+
+def test_the_poll_is_far_shorter_than_the_reconcile():
+    # The poll exists to close the gap the sweep leaves; if it ever grew to the
+    # sweep's cadence it would be pure cost.
+    assert botmod.ROADMAP_POLL_SECONDS < botmod.RECONCILE_INTERVAL_SECONDS / 10
