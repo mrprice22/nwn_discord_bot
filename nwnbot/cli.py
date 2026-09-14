@@ -686,7 +686,10 @@ def cmd_link(args: argparse.Namespace, env: Mapping[str, str],
         try:
             forum = await build_forum_snapshot(
                 client, tuple(_channel_types(env)),
-                (env.get(cfg.ENV_DISCORD_BOT_USER_ID) or ""))
+                (env.get(cfg.ENV_DISCORD_BOT_USER_ID) or ""),
+                dict(cfg.PlayerMap.load(
+                    getattr(args, "players", None)
+                    or cfg.Settings.from_env(env).players_path).ids))
             marks = await _thread_reactions(client, forum)
         finally:
             await client.close()
@@ -1077,6 +1080,7 @@ def _live(args: argparse.Namespace, env: Mapping[str, str], out: Any, *,
                 source = LiveSource(roadmap_client, client,
                                     tuple(_channel_types(env)),
                                     context.bot_user_id,
+                                    players=dict(context.players),
                                     image_store=_image_store(env))
                 engine = SyncEngine(
                     source, context, store=view, roadmap_client=roadmap_client,
@@ -1122,6 +1126,7 @@ def cmd_serve(args: argparse.Namespace, env: Mapping[str, str],
             await roadmap_client.login()
             source = LiveSource(roadmap_client, None, tuple(_channel_types(env)),
                                 context.bot_user_id,
+                                players=dict(context.players),
                                 image_store=_image_store(env))
             engine = SyncEngine(source, context, store=store,
                                 roadmap_client=roadmap_client, dry_run=dry_run,

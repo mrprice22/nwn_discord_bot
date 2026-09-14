@@ -101,6 +101,23 @@ TERMINAL_STATUSES = frozenset({"awarded", "unlikely"})
 #: been a schema change, and so a reopening of [r1].
 NEW_IDEA_STATUS = "planned"
 
+#: Phrases that turn a mention into an attribution. Matched immediately either
+#: side of the mention, because both orders occur in practice: "requested by
+#: @X" and "@X suggested". Deliberately a short, literal list -- a looser
+#: pattern would catch "thanks @X" and "@X can you confirm", which are not
+#: attributions at all.
+ON_BEHALF_BEFORE = ("requested by", "suggested by", "reported by",
+                    "on behalf of", "asked for by", "raised by", "for")
+ON_BEHALF_AFTER = ("suggested", "requested", "reported", "asked for",
+                   "raised this", "wants", "would like")
+
+#: The mention itself, as Discord stores it. Matched on the RAW form: the
+#: planner sees content after nwnbot.bot.resolve_mentions has rewritten it for
+#: humans, so this also has to cope with the resolved `@Name` shape — which it
+#: does by reading the id, and falling back to no attribution when there is no
+#: id left to read. An unattributed idea is the safe outcome.
+MENTION_RE = re.compile(r"<@!?(\d+)>")
+
 #: Discord's hard limit on a forum thread name. A roadmap title can be a whole
 #: sentence -- 41 of 423 are over this -- and the API rejects the create
 #: outright with "In name: Must be between 1 and 100 in length", so the thread
@@ -233,6 +250,13 @@ REVIEW_NO_CHANNEL_FOR_TYPE = "no_channel_for_type"
 REVIEW_UNSLUGGABLE_TITLE = "unsluggable_title"
 REVIEW_BROKEN_LINK = "broken_link"
 REVIEW_DUPE_CYCLE = "dupe_cycle"
+#: The opening post names someone else as the person who actually asked for
+#: this. Filed as a question, never applied: `player` decides who is paid merit
+#: when the item ships, and two of the five real mentions in this roadmap were
+#: NOT attribution -- one a question addressed to a player, one a note that
+#: somebody else had also hit the bug. Reading "the first mention wins" would
+#: have paid the wrong person twice.
+REVIEW_ON_BEHALF = "on_behalf_of"
 #: A new thread scored inside the duplicate band. Always a proposal: the idea
 #: was created normally and no `dupe_of` was written. Resolving the entry
 #: without setting `dupe_of` is how you say "no" — a resolved review is never
@@ -1016,6 +1040,75 @@ def _review(actions: list[Action], view: StoreView, kind: str, subject: str,
     actions.append(item)
 
 
+def report_date(created_at: str) -> str:
+    """A thread's creation time as the roadmap's ``YYYY-MM-DD``, or "".
+
+    The roadmap stores a plain date; Discord hands over a full ISO timestamp.
+    Anything unparseable yields "" rather than a guess: a wrong date on a card
+    is worse than none, because nothing downstream can tell it is wrong.
+    """
+    text = (created_at or "").strip()
+    if not text:
+        return ""
+    head = text[:10]
+    if len(head) == 10 and head[4] == "-" and head[7] == "-":
+        try:
+            int(head[:4]), int(head[5:7]), int(head[8:10])
+        except ValueError:
+            return ""
+        return head
+    return ""
+
+
+def credited_to(text: str, players: Mapping[str, str]) -> str:
+    """The player this report was filed ON BEHALF OF, or "".
+
+    Reads only an explicit attribution: a mention with one of a short list of
+    phrases immediately before or after it. Both orders occur -- "requested by
+    @X" and "@X suggested" -- and both are in this roadmap already.
+
+    Matches the RESOLVED form (`@Sync (Shync)`) as well as the raw one
+    (`<@139...>`), because nwnbot.bot.resolve_mentions rewrites the text for
+    human readers before a planner ever sees it. Matching only the raw id would
+    have made this silently dead on the live path while passing every test.
+
+    A bare mention is NOT an attribution and must not be read as one. Of the
+    five real mentions in this roadmap two were something else: a question
+    addressed to a player ("@Balendin -- I assume this happened as you logged
+    in") and a note that someone else had also hit the bug. "First mention
+    wins" would have moved merit credit to the wrong person in both.
+    """
+    body = " ".join((text or "").split())
+    if not body or "@" not in body:
+        return ""
+
+    # (start, end, player) for every mention, in either shape. Names are tried
+    # longest first so "Sync (Shync)" wins over a shorter name it contains.
+    found: list[tuple[int, int, str]] = []
+    for match in MENTION_RE.finditer(body):
+        name = players.get(match.group(1))
+        if name:
+            found.append((match.start(), match.end(), name))
+    for name in sorted(set(players.values()), key=len, reverse=True):
+        needle = "@" + name
+        at = body.find(needle)
+        while at != -1:
+            span = (at, at + len(needle))
+            if not any(a <= at < b for a, b, _ in found):
+                found.append((span[0], span[1], name))
+            at = body.find(needle, at + 1)
+    found.sort()
+
+    for start, end, name in found:
+        before = body[:start].lower().rstrip(" :-")
+        after = body[end:].lower().lstrip(" :-,")
+        if any(before.endswith(cue) for cue in ON_BEHALF_BEFORE):
+            return name
+        if any(after.startswith(cue) for cue in ON_BEHALF_AFTER):
+            return name
+    return ""
+
+
 def _plan_new_idea(actions: list[Action], thread: ForumThread, roadmap: Snapshot,
                    view: StoreView, ctx: PlanContext, minted: list[str],
                    dupe_of: str | None = None,
@@ -1087,9 +1180,29 @@ def _plan_new_idea(actions: list[Action], thread: ForumThread, roadmap: Snapshot
     # Awaiting the admin's approval. Cleared in the editor, never here: the bot
     # can say "someone should look at this" and can never answer it.
     idea["triage"] = True
+    # When it was reported. The roadmap shows `date` on the card and the
+    # backfilled thread header quotes it, and neither has anything to say
+    # without this -- a brand-new idea would read "Unknown date" on the very
+    # day it was filed. The thread's creation time IS the report date.
+    reported = report_date(thread.created_at)
+    if reported:
+        idea["date"] = reported
     # The description the admin would otherwise write by hand from the thread.
     # Falls back to the reporter's own words, which is the thing being
     # described: using them verbatim is never wrong, only longer.
+    # Filed on someone else's behalf? Asked, never assumed: `player` decides
+    # who is paid when the item ships. The idea is still created, credited to
+    # the thread's author, and the question goes to the review queue.
+    on_behalf = credited_to(
+        thread.starter.content if thread.starter else "", ctx.players)
+    if on_behalf and on_behalf != player:
+        _review(actions, view, REVIEW_ON_BEHALF, thread.id,
+                f"thread {thread.id} ({thread.title!r}) was opened by {player!r} "
+                f"but its first post credits {on_behalf!r}. Filed as {idea_id!r} "
+                f"crediting {player!r}; change `player` in the editor if the "
+                f"submitter credit belongs to {on_behalf!r}",
+                thread_id=thread.id, idea_id=idea_id)
+
     summary = (ctx.summaries.get(thread.id) or "").strip()
     if not summary and thread.starter is not None:
         summary = (thread.starter.content or "").strip()
@@ -1748,6 +1861,9 @@ __all__ = [
     "REVIEW_ACTION_CAP",
     "REVIEW_BROKEN_LINK",
     "REVIEW_DUPE_CYCLE",
+    "REVIEW_ON_BEHALF",
+    "credited_to",
+    "report_date",
     "REVIEW_DUPE_ECHO",
     "REVIEW_DUPE_UNLINKED",
     "REVIEW_NO_CHANNEL_FOR_TYPE",

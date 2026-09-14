@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 from dataclasses import dataclass, field, replace
 from typing import Any, Iterable, Mapping
 
@@ -57,6 +58,10 @@ from nwnbot.sync import (
 )
 
 log = logging.getLogger("nwnbot")
+
+#: A Discord user mention. `<@123>` and `<@!123>` are the same thing; the bang
+#: form is legacy but still turns up in older messages.
+_MENTION_RE = re.compile(r"<@!?(\d+)>")
 
 # How often the full reconcile runs, in seconds (15 minutes, per plan.md).
 RECONCILE_INTERVAL_SECONDS = 15 * 60
@@ -566,6 +571,7 @@ class DiscordForumWriter(ForumWriter):  # pragma: no cover - needs a gateway
 
 async def build_forum_snapshot(client: Any, channel_ids: Iterable[str],
                                bot_user_id: str = "",
+                               players: Mapping[str, str] | None = None,
                                ) -> ForumSnapshot:  # pragma: no cover - needs a gateway
     """Read the forums into the plain data the planners consume."""
     threads: list[ForumThread] = []
@@ -597,7 +603,8 @@ async def build_forum_snapshot(client: Any, channel_ids: Iterable[str],
         async for archived in channel.archived_threads(limit=None):
             seen.append(archived)
         for thread in seen:
-            threads.append(await _read_thread(thread, str(channel_id), tag_names))
+            threads.append(await _read_thread(thread, str(channel_id), tag_names,
+                                              players))
     return ForumSnapshot(tuple(threads), bot_user_id=str(bot_user_id or ""),
                          available_tags=available)
 
@@ -618,6 +625,37 @@ def _applied_tag_names(thread: Any, tag_names: Mapping[str, str] | None
         return names
     raw = getattr(thread, "_applied_tags", None) or ()
     return tuple(tag_names[str(i)] for i in raw if str(i) in tag_names)
+
+
+def resolve_mentions(text: str, mentions: Any = (),
+                     players: Mapping[str, str] | None = None) -> str:
+    """Turn ``<@123…>`` into a name a human can read.
+
+    Discord stores a mention as a bare id and renders it in the client only.
+    Copied anywhere else -- an idea's notes, an internal comment, a roadmap
+    page -- it is an 18-digit number, and "requested by <@139336304784703488>"
+    tells the reader nothing at all.
+
+    The roadmap's own player name is preferred over the Discord display name:
+    it is what the `player` field and the merit ledger use, so an admin reading
+    "requested by @Sync (Shync)" can act on it directly.
+    """
+    if not text or "<@" not in text:
+        return text or ""
+    by_id = {str(getattr(u, "id", "")): (getattr(u, "display_name", "")
+                                         or getattr(u, "name", ""))
+             for u in (mentions or ())}
+    lookup = dict(players or {})
+
+    def sub(match):
+        uid = match.group(1)
+        # Roadmap name first, Discord display name second, the raw id last --
+        # never silently dropped, because an unresolvable mention is itself
+        # worth seeing.
+        name = lookup.get(uid) or by_id.get(uid)
+        return f"@{name}" if name else match.group(0)
+
+    return _MENTION_RE.sub(sub, text)
 
 
 def _attachments_of(message: Any) -> tuple:  # pragma: no cover - needs a gateway
@@ -661,6 +699,7 @@ async def _active_threads_via_rest(client: Any, channel: Any
 
 async def _read_thread(thread: Any, channel_id: str,
                        tag_names: Mapping[str, str] | None = None,
+                       players: Mapping[str, str] | None = None,
                        ) -> ForumThread:  # pragma: no cover - needs a gateway
     messages = [m async for m in thread.history(limit=None, oldest_first=True)]
     starter = None
@@ -670,7 +709,8 @@ async def _read_thread(thread: Any, channel_id: str,
             id=str(message.id),
             author_id=str(message.author.id),
             author_name=str(message.author.display_name or message.author.name),
-            content=message.content or "",
+            content=resolve_mentions(message.content or "",
+                                     getattr(message, "mentions", ()), players),
             created_at=message.created_at.isoformat() if message.created_at else "",
             is_starter=index == 0,
             edited=bool(getattr(message, "edited_at", None)),
@@ -799,6 +839,10 @@ class LiveSource(SnapshotSource):  # pragma: no cover - needs a gateway
     discord_client: Any
     channel_ids: tuple[str, ...] = ()
     bot_user_id: str = ""
+    #: Discord id -> roadmap player name, so a `<@123…>` mention is rewritten to
+    #: a readable name at capture time. Without it every mention reaches the
+    #: roadmap as an 18-digit number.
+    players: Mapping[str, str] = field(default_factory=dict)
     #: Where rehosted screenshots go. ``None`` disables rehosting: images are
     #: then reported as present-but-not-kept rather than written as a signed
     #: link that dies within the day.
@@ -807,7 +851,7 @@ class LiveSource(SnapshotSource):  # pragma: no cover - needs a gateway
     async def snapshots(self) -> tuple[Snapshot, ForumSnapshot]:
         roadmap = await self.roadmap_client.fetch()
         forum = await build_forum_snapshot(self.discord_client, self.channel_ids,
-                                           self.bot_user_id)
+                                           self.bot_user_id, self.players)
         if self.image_store is not None:
             forum = await rehost_images(forum, self.image_store)
         return roadmap, forum
@@ -818,6 +862,7 @@ __all__ = [
     "EVENT_DEBOUNCE_SECONDS",
     "EventFunnel",
     "rehost_images",
+    "resolve_mentions",
     "summarise_new_threads",
     "LiveSource",
     "RECONCILE_INTERVAL_SECONDS",

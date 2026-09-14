@@ -1507,3 +1507,116 @@ def test_an_open_thread_is_still_archived_and_locked_on_merit():
                                    _view(status="awarded"), CTX)
     archives = [a for a in plan if isinstance(a, ArchiveThread)]
     assert len(archives) == 1 and archives[0].locked is True
+
+
+# ==========================================================================
+# On-behalf-of credit. Merit money: proposed, never applied.
+# ==========================================================================
+from nwnbot.sync import REVIEW_ON_BEHALF, credited_to  # noqa: E402
+
+PMAP = {"139336304784703488": "Sync (Shync)",
+        "209097087516672000": "-Methonash-",
+        "205526366614061056": "Balendin (Balendin_2222)"}
+
+
+def test_a_cue_before_the_mention_is_an_attribution():
+    assert credited_to("requested by <@139336304784703488> 9/7/26",
+                       PMAP) == "Sync (Shync)"
+
+
+def test_a_cue_after_the_mention_is_an_attribution():
+    # Both orders occur in the real roadmap.
+    assert credited_to("<@209097087516672000> suggested", PMAP) == "-Methonash-"
+
+
+def test_the_resolved_form_is_read_too():
+    # resolve_mentions rewrites the text for humans BEFORE a planner sees it,
+    # so matching only the raw id would be dead on the live path while passing
+    # every fixture-based test.
+    assert credited_to("requested by @Sync (Shync) 9/7/26", PMAP) == "Sync (Shync)"
+    assert credited_to("@-Methonash- suggested", PMAP) == "-Methonash-"
+
+
+def test_a_question_addressed_to_a_player_is_not_an_attribution():
+    # Real text from the roadmap. "First mention wins" would pay Balendin for
+    # someone else's report.
+    assert credited_to("<@205526366614061056> -- I assume this happened as you "
+                       "logged in.. was anything else going on?", PMAP) == ""
+
+
+def test_noting_that_someone_else_also_hit_it_is_not_an_attribution():
+    assert credited_to("<@209097087516672000> pointed this out in game recently "
+                       "too -- its on my todo list", PMAP) == ""
+
+
+def test_a_bare_thanks_is_not_an_attribution():
+    assert credited_to("thanks <@139336304784703488>", PMAP) == ""
+
+
+def test_an_unmapped_id_credits_nobody():
+    # Never guess at a name that is not on the roster.
+    assert credited_to("requested by <@999999999999999999>", PMAP) == ""
+
+
+def test_no_mention_credits_nobody():
+    assert credited_to("the forge is broken", PMAP) == ""
+    assert credited_to("", PMAP) == ""
+
+
+def test_an_on_behalf_thread_is_still_credited_to_its_author_and_queried():
+    # Discord ids are numeric snowflakes, which is what MENTION_RE requires.
+    ctx = _replace(CTX, players={"u-1": PLAYER, "209097087516672000": "Tukwut"})
+    t = thread(starter=msg(content="requested by <@209097087516672000>",
+                           starter=True))
+    plan = plan_discord_to_roadmap(roadmap(idea(), players=(PLAYER, "Tukwut")),
+                                   forum(t), None, ctx)
+    created = [a for a in plan if isinstance(a, CreateIdea)][0]
+    # Created, and credited to the person who OPENED the thread...
+    assert created.idea["player"] == PLAYER
+    # ...with the question filed rather than answered.
+    assert REVIEW_ON_BEHALF in review_kinds(plan)
+
+
+def test_no_question_when_the_attribution_matches_the_author():
+    ctx = _replace(CTX, players={"u-1": PLAYER})
+    t = thread(starter=msg(content=f"requested by @{PLAYER}", starter=True))
+    plan = plan_discord_to_roadmap(roadmap(), forum(t), None, ctx)
+    assert REVIEW_ON_BEHALF not in review_kinds(plan)
+
+
+# ==========================================================================
+# The report date. The roadmap card shows `date` and the backfilled thread
+# header quotes it; without this a brand-new idea reads "Unknown date" on the
+# day it was filed.
+# ==========================================================================
+from nwnbot.sync import report_date  # noqa: E402
+
+
+def test_an_iso_timestamp_becomes_a_roadmap_date():
+    assert report_date("2026-09-10T18:22:01.123000+00:00") == "2026-09-10"
+
+
+def test_a_bare_date_passes_through():
+    assert report_date("2026-09-10") == "2026-09-10"
+
+
+def test_an_unparseable_value_yields_nothing_rather_than_a_guess():
+    # A wrong date on a public card is worse than none: nothing downstream can
+    # tell that it is wrong.
+    for bad in ("", "not a date", "2026-9-1", "20260910", None):
+        assert report_date(bad) == ""
+
+
+def test_a_new_idea_carries_the_threads_creation_date():
+    t = thread(starter=msg(starter=True))
+    t = _replace(t, created_at="2026-09-10T18:22:01+00:00")
+    plan = plan_discord_to_roadmap(roadmap(), forum(t), None, CTX)
+    created = [a for a in plan if isinstance(a, CreateIdea)][0]
+    assert created.idea["date"] == "2026-09-10"
+
+
+def test_a_thread_with_no_creation_time_gets_no_date():
+    plan = plan_discord_to_roadmap(
+        roadmap(), forum(thread(starter=msg(starter=True))), None, CTX)
+    created = [a for a in plan if isinstance(a, CreateIdea)][0]
+    assert "date" not in created.idea
