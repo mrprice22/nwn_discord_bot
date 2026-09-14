@@ -649,7 +649,34 @@ the scorer, and before arming `serve`. Turning the gate on is a decision, not a 
 and on this evidence the thing that earns it is semantic matching, not a different number.
 **Answer:** _(unanswered)_
 
-### `[r16]` 2026-09-05 — Who counts as staff? — status: open
+### `[r17]` 2026-09-13 — The awarded-exclusion, and what it does not fix — status: answered
+Raised and answered in the same session, because it came from the admin as a rule rather than
+as a question: *"I try not to reopen ideas once they've been awarded/fully deployed — once
+defects or related improvements are reported after that I log new stories as non-duplicate."*
+
+Shipped now: `dupes.is_shipped()` (`merit_awarded: true`, or status `awarded`/`implemented`)
+marks an idea as never a merge target. `unlikely` is deliberately NOT shipped — nothing was
+delivered, so a second report of it is a genuine duplicate. A match against shipped work is
+still *scored*, and filed as `REVIEW_DUPE_ECHO`: a new story in its own right, flagged as a
+possible regression in, or follow-up to, that work. Nothing is said to the player on that path
+— telling someone who just hit a bug that it was already fixed is the wrong answer.
+
+**Measured on the real corpus, not asserted:** 200 of 412 ideas (49%) leave the merge pool.
+Of the admin's 17 recorded verdicts in `nwn_homers_lotr/dupe-suggestions.json`, only 6 describe
+a scenario the bot can face — the other 11 are both-sides-shipped pairs, i.e. archival tidying
+at which no new report exists. Of those 6 the rule gets 4 right: three `no` verdicts become
+echoes, and the one true duplicate is still proposed.
+
+**What it does not fix**, and the two cases are worth naming because they set up the next item:
+- `Prestige quest: Harper Scout (L6+)` vs `Prestige quest: Shifter (L16+)` — a *series*, where
+  a shared prefix and a differing tail mean sibling, not duplicate. The same shape produces the
+  worst false positives in the whole corpus (`Sorcerer line I` vs `Sorcerer line II`, 0.87), and
+  a prefix/series rule would catch all of them cheaply.
+- `Area authoring: the Grey Havens (+ Cirdan NPC)` vs `Quest: The Last Ship's Cargo (Grey
+  Havens)` — same place, different work. Text cannot separate these; this is the case `[r15]`
+  means by semantic matching.
+
+### `[r16]` 2026-09-05 — Who counts as staff? — status: answered
 Blocks nothing; the conservative option is shipped. Raised by `[b8-backfill]`, whose eligibility
 policy turns on it.
 Nothing in `roadmap.yaml` marks a role — `players:` is a flat list of 19 names — so
@@ -661,7 +688,11 @@ filed roadmap items under their own name, add them — otherwise their `planned`
 each open a thread nobody is waiting on. Of the 19 names, the ones with enough open items to
 matter are `Sync (Shync)` (14), `Rajmund (Ray)` (11) and `Tukwut` (9); the rest have five or
 fewer.
-**Answer:** _(unanswered)_
+**Answer:** 2026-09-13 — confirmed as proposed. `HomelessSon (Server Admin)` is the
+whole staff list; no DM has filed roadmap items under their own name. `config.STAFF_PLAYERS`
+already holds exactly that one name, so nothing changed in code — this entry records the
+decision rather than a diff. Every other name on the roster is treated as a player, which is
+the generous direction: `Sync (Shync)`, `Rajmund (Ray)` and `Tukwut` keep their threads.
 
 ---
 

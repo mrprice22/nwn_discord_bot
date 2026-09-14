@@ -144,6 +144,25 @@ def score(title_a: str | None, body_a: str | None,
     return title_weight * title_ratio + (1.0 - title_weight) * overlap
 
 
+#: Statuses that mean the work shipped. An idea in one of these is never
+#: offered as something to merge INTO: the admin's rule is that an idea is not
+#: reopened once it has been awarded or deployed, so a defect or a follow-up
+#: reported afterwards is a new story in its own right, with its own merit.
+#: `unlikely` is terminal but NOT shipped, and stays a legitimate merge target.
+SHIPPED_STATUSES: frozenset[str] = frozenset({"awarded", "implemented"})
+
+
+def is_shipped(idea: Mapping[str, Any]) -> bool:
+    """Whether this idea is past the point of being reopened.
+
+    ``merit_awarded`` is the merit DB's own receipt and is checked first: status
+    can bounce, that boolean cannot, so it is the more reliable of the two.
+    """
+    if idea.get("merit_awarded") is True:
+        return True
+    return str(idea.get("status") or "") in SHIPPED_STATUSES
+
+
 @dataclass(frozen=True)
 class Prepared:
     """One candidate idea, with its HTML notes already flattened and cut.
@@ -157,6 +176,11 @@ class Prepared:
     title: str
     group: str = ""
     body: str = ""
+    #: Shipped: scoreable, but only ever reportable as an echo, never as a
+    #: merge target. Kept in the pool rather than dropped so a report that
+    #: resembles something already delivered can still be *recognised* as a
+    #: regression or follow-up instead of silently looking novel.
+    shipped: bool = False
 
 
 @dataclass(frozen=True)
@@ -185,6 +209,10 @@ def prepare(ideas: Iterable[Mapping[str, Any]], *,
     Dupe rows are dropped: a second report must be matched against the item it
     would duplicate, never against another duplicate of it. ``impl_notes`` is
     not read at all.
+
+    Shipped ideas are *kept and marked*, not dropped — see :data:`SHIPPED_STATUSES`.
+    The caller decides what to do with them, which is what lets a match against
+    delivered work be reported as an echo rather than as a duplicate.
     """
     out: list[Prepared] = []
     for idea in ideas:
@@ -198,6 +226,7 @@ def prepare(ideas: Iterable[Mapping[str, Any]], *,
             title=str(idea.get("title") or ""),
             group=str(idea.get("group") or ""),
             body=_flatten_notes(idea.get("notes"), notes_max),
+            shipped=is_shipped(idea),
         ))
     return tuple(out)
 

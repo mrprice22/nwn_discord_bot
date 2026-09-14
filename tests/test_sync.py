@@ -1072,3 +1072,62 @@ def test_an_empty_only_is_no_restriction():
             for i in range(3)]
     plan = plan_roadmap_to_discord(roadmap(*rows), forum(), None, _only_ctx())
     assert len(plan.writes) == 3
+
+
+# --------------------------------------------------------------------------
+# The awarded-exclusion: an idea is not reopened once it has shipped.
+#
+# A report matching delivered work is a NEW story with its own merit, and the
+# resemblance is reported as an echo — most likely a regression in that work,
+# or a follow-up to it. It is never a merge proposal, and the player is never
+# told "we already did that".
+# --------------------------------------------------------------------------
+from nwnbot.sync import REVIEW_DUPE_ECHO  # noqa: E402
+
+SHIPPED = dict(EXISTING, id="forge-bank-tab-order-resets",
+               status="awarded", merit_awarded=True)
+
+
+def test_a_shipped_idea_is_never_offered_as_a_duplicate():
+    plan = plan_discord_to_roadmap(
+        roadmap(SHIPPED), forum(dupe_thread()), None, DUPE_CTX)
+    assert REVIEW_POSSIBLE_DUPE not in review_kinds(plan)
+    assert "CreateIdea" in kinds(plan)          # the report is still filed
+
+
+def test_a_shipped_near_match_is_reported_as_an_echo():
+    plan = plan_discord_to_roadmap(
+        roadmap(SHIPPED), forum(dupe_thread()), None, DUPE_CTX)
+    assert review_kinds(plan) == [REVIEW_DUPE_ECHO]
+    detail = [a for a in plan if getattr(a, "kind", "") == REVIEW_DUPE_ECHO][0].detail
+    assert "already shipped" in detail and "NOT a duplicate" in detail
+
+
+def test_an_echo_never_speaks_to_the_player():
+    # Even with the in-thread gate ON and a score above the high band: telling
+    # someone who just hit a bug that it was already fixed is the wrong answer.
+    loud = _replace(DUPE_CTX, dupe_post_in_thread=True)
+    plan = plan_discord_to_roadmap(
+        roadmap(SHIPPED), forum(dupe_thread()), None, loud)
+    assert "PostMessage" not in kinds(plan)
+
+
+def test_merit_awarded_alone_is_enough_to_exclude():
+    # Status can bounce; the merit receipt cannot. The boolean wins on its own.
+    row = dict(EXISTING, status="wip", merit_awarded=True)
+    plan = plan_discord_to_roadmap(roadmap(row), forum(dupe_thread()), None, DUPE_CTX)
+    assert review_kinds(plan) == [REVIEW_DUPE_ECHO]
+
+
+def test_unlikely_is_terminal_but_still_a_merge_target():
+    # `unlikely` means "we are not doing this", not "we did this" — nothing was
+    # delivered, so a second report of it is a genuine duplicate.
+    row = dict(EXISTING, status="unlikely")
+    plan = plan_discord_to_roadmap(roadmap(row), forum(dupe_thread()), None, DUPE_CTX)
+    assert review_kinds(plan) == [REVIEW_POSSIBLE_DUPE]
+
+
+def test_an_open_idea_is_unaffected_by_the_rule():
+    plan = plan_discord_to_roadmap(
+        roadmap(EXISTING), forum(dupe_thread()), None, DUPE_CTX)
+    assert review_kinds(plan) == [REVIEW_POSSIBLE_DUPE]

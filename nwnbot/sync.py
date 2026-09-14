@@ -195,6 +195,11 @@ REVIEW_POSSIBLE_DUPE = "possible_dupe"
 #: The player was told something that is no longer true; the bot does not post
 #: a retraction on its own, it asks.
 REVIEW_DUPE_UNLINKED = "dupe_unlinked"
+#: A new report that closely resembles work already shipped. NOT a duplicate
+#: proposal: the admin does not reopen an awarded item, so this is filed as
+#: its own story and the resemblance is reported as context — a regression or
+#: a follow-up to something already delivered, which is worth seeing.
+REVIEW_DUPE_ECHO = "dupe_echo"
 REVIEW_UNKNOWN_STATUS = "unknown_status"
 REVIEW_ACTION_CAP = "action_cap"
 
@@ -887,9 +892,12 @@ def plan_discord_to_roadmap(roadmap: Snapshot, forum: ForumSnapshot,
             if candidates is None:  # built once per run, and only if needed
                 candidates = _dupe_candidates(roadmap, ctx)
             best = _best_dupe(thread, candidates, ctx)
+            echo = _best_dupe(thread, candidates, ctx, shipped=True)
             new_id = _plan_new_idea(actions, thread, roadmap, view, ctx, minted)
             if new_id and best is not None:
                 _plan_dupe_hint(actions, thread, new_id, best, view, ctx)
+            if new_id and echo is not None:
+                _plan_dupe_echo(actions, thread, new_id, echo, view, ctx)
             continue
 
         idea = by_id[idea_id]
@@ -1025,8 +1033,15 @@ def _dupe_candidates(roadmap: Snapshot, ctx: PlanContext) -> tuple[dupes.Prepare
 
 
 def _best_dupe(thread: ForumThread, candidates: Sequence[dupes.Prepared],
-               ctx: PlanContext) -> dupes.Candidate | None:
-    """The closest existing idea, or ``None`` when nothing clears the low band."""
+               ctx: PlanContext, *,
+               shipped: bool = False) -> dupes.Candidate | None:
+    """The closest existing idea, or ``None`` when nothing clears the low band.
+
+    ``shipped`` selects which pool to look in: ``False`` is the merge-candidate
+    pool and ``True`` the echo pool. They are scored the same way and reported
+    very differently — see :data:`REVIEW_DUPE_ECHO`.
+    """
+    candidates = tuple(c for c in candidates if c.shipped is shipped)
     if not candidates:
         return None
     ranked = dupes.rank(thread.title, thread.body, candidates,
@@ -1064,6 +1079,26 @@ def _plan_dupe_hint(actions: list[Action], thread: ForumThread, idea_id: str,
     actions.append(PostMessage(thread_id=thread.id, idea_id=idea_id, text=text,
                                kind="dupe_hint", field_name="dupe_hint",
                                value=best.idea_id))
+
+
+def _plan_dupe_echo(actions: list[Action], thread: ForumThread, idea_id: str,
+                    echo: dupes.Candidate, view: StoreView, ctx: PlanContext) -> None:
+    """Note that a new report resembles work already shipped.
+
+    Deliberately NOT a duplicate proposal and never a `dupe_of`: an awarded item
+    is not reopened, so this report is its own story earning its own merit. What
+    the admin wants to see is that it may be a regression in, or a follow-up to,
+    something already delivered. Nothing is said to the player on this path —
+    "we already did that" is exactly the wrong thing to tell someone who just
+    hit it again.
+    """
+    key = f"{REVIEW_DUPE_ECHO}:{thread.id}:{echo.idea_id}"
+    _review(actions, view, REVIEW_DUPE_ECHO, thread.id,
+            f"thread {thread.id} ({thread.title!r}) scores {echo.value:.2f} against "
+            f"{echo.idea_id!r} ({echo.title!r}), which is already shipped. Filed as "
+            f"{idea_id!r}, a new story, NOT a duplicate — it may be a regression in "
+            f"that work or a follow-up to it",
+            thread_id=thread.id, idea_id=idea_id, review_key=key)
 
 
 def _plan_confirmed_dupe(actions: list[Action], idea: Mapping[str, Any], idea_id: str,
@@ -1464,6 +1499,7 @@ __all__ = [
     "REVIEW_ACTION_CAP",
     "REVIEW_BROKEN_LINK",
     "REVIEW_DUPE_CYCLE",
+    "REVIEW_DUPE_ECHO",
     "REVIEW_DUPE_UNLINKED",
     "REVIEW_NO_CHANNEL_FOR_TYPE",
     "REVIEW_PLAYER_NOT_ON_ROSTER",

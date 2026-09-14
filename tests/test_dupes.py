@@ -183,3 +183,32 @@ def test_template_titled_siblings_are_the_scorers_worst_false_positive():
     # templated too. Either way it outranks every real duplicate.
     assert dupes.score(*args, title_weight=0.6) > 0.6, "the problem, at tw=0.6"
     assert dupes.score(*args, title_weight=0.3) < dupes.score(*args, title_weight=0.6)
+
+
+# --------------------------------------------------------------------------
+# `shipped`: scoreable, but never a merge target. See SHIPPED_STATUSES.
+# --------------------------------------------------------------------------
+
+def test_prepare_marks_shipped_ideas_rather_than_dropping_them():
+    prepared = dupes.prepare([
+        idea("a", "Alpha", status="awarded"),
+        idea("b", "Beta", status="planned"),
+    ])
+    assert {p.idea_id: p.shipped for p in prepared} == {"a": True, "b": False}
+
+
+def test_merit_awarded_marks_shipped_whatever_the_status():
+    prepared = dupes.prepare([dict(idea("a", "Alpha", status="wip"),
+                                   merit_awarded=True)])
+    assert prepared[0].shipped is True
+
+
+def test_unlikely_is_not_shipped():
+    prepared = dupes.prepare([idea("a", "Alpha", status="unlikely")])
+    assert prepared[0].shipped is False
+
+
+def test_is_shipped_reads_the_receipt_before_the_status():
+    assert dupes.is_shipped({"status": "planned", "merit_awarded": True}) is True
+    assert dupes.is_shipped({"status": "implemented"}) is True
+    assert dupes.is_shipped({"status": "wip"}) is False
