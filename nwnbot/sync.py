@@ -225,9 +225,24 @@ DUPE_CONFIRMED_MESSAGE = (
 #: roadmap. The reporter has heard nothing since they filed it, so this is the
 #: first news they get: it happened, and updates will follow here.
 APPROVED_MESSAGE = (
-    "Added to the roadmap: **{title}**. Thanks for reporting it — you will get "
-    "an update here as it moves.{link}"
+    "Added to the roadmap: **{title}** — now **{label}**. {outlook}{link}"
 )
+
+#: What each lane actually means for the reporter, because the label alone does
+#: not answer the question they are asking. "Under consideration" and "In
+#: progress" are both approvals, and telling someone their report is being
+#: worked on when it is sixth in a queue -- or the reverse -- is the kind of
+#: thing that stops people reporting at all.
+APPROVED_OUTLOOK = {
+    "confirmed": "Work on it has started.",
+    "wip": "It is next in line to be worked on.",
+    "soon": "It is queued up to be worked on shortly.",
+    "later": "It is on the list, but not scheduled yet.",
+    "planned": "It is logged and being weighed against the rest of the backlog.",
+}
+
+#: For a lane with no entry above. Says the true thing and promises nothing.
+APPROVED_OUTLOOK_DEFAULT = "You will get an update here as it moves."
 
 #: The internal note left on the *canonical* item when a duplicate is confirmed,
 #: so the extra demand shows up where the admin actually works. Never rendered.
@@ -1722,10 +1737,14 @@ def _plan_approved_post(actions: list[Action], idea_id: str, idea: Mapping[str, 
         return True
     if thread.archived:
         return False
+    status = str(idea.get("status") or "")
     actions.append(PostMessage(
         thread_id=thread.id, idea_id=idea_id,
-        text=APPROVED_MESSAGE.format(title=str(idea.get("title") or idea_id),
-                                     link=ctx._link(idea_id)),
+        text=APPROVED_MESSAGE.format(
+            title=str(idea.get("title") or idea_id),
+            label=_status_label(status),
+            outlook=APPROVED_OUTLOOK.get(status, APPROVED_OUTLOOK_DEFAULT),
+            link=ctx._link(idea_id)),
         kind="approved", field_name="triage", value=pending))
     return True
 
@@ -1835,6 +1854,7 @@ def simulate(plan: Plan, roadmap: Snapshot, forum: ForumSnapshot,
 __all__ = [
     "ADMIN_ONLY_FIELDS",
     "APPROVED_MESSAGE",
+    "APPROVED_OUTLOOK",
     "CREATION_ONLY_FIELDS",
     "ADMIN_ONLY_STATUSES",
     "Action",

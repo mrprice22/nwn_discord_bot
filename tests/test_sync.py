@@ -1620,3 +1620,46 @@ def test_a_thread_with_no_creation_time_gets_no_date():
         roadmap(), forum(thread(starter=msg(starter=True))), None, CTX)
     created = [a for a in plan if isinstance(a, CreateIdea)][0]
     assert "date" not in created.idea
+
+
+# ==========================================================================
+# The approval message says which lane, and what that means.
+# ==========================================================================
+from nwnbot.sync import (APPROVED_OUTLOOK, APPROVED_OUTLOOK_DEFAULT)  # noqa: E402
+
+
+def _approve_plan(status):
+    row = idea(status=status, discord={"thread_id": "t-1"})
+    return _plan(row, _view(triage=True, status=status))
+
+
+@pytest.mark.parametrize("status,label", [
+    ("confirmed", "in progress"),
+    ("wip", "up next"),
+    ("soon", "soon"),
+    ("later", "later"),
+    ("planned", "under consideration"),
+])
+def test_the_approval_message_names_the_lane(status, label):
+    text = posts(_approve_plan(status))[0].text
+    assert f"now **{label}**" in text
+
+
+@pytest.mark.parametrize("status", sorted(APPROVED_OUTLOOK))
+def test_each_lane_says_what_it_means_for_the_reporter(status):
+    # The label alone does not answer the question they are asking. "Under
+    # consideration" and "In progress" are both approvals.
+    text = posts(_approve_plan(status))[0].text
+    assert APPROVED_OUTLOOK[status] in text
+
+
+def test_every_lane_says_something_different():
+    said = {s: posts(_approve_plan(s))[0].text for s in APPROVED_OUTLOOK}
+    assert len(set(said.values())) == len(said)
+
+
+def test_a_lane_with_no_wording_promises_nothing_specific():
+    # `design` is reachable by hand even though the queue does not offer it.
+    text = posts(_approve_plan("design"))[0].text
+    assert APPROVED_OUTLOOK_DEFAULT in text
+    assert "needs design input" in text
