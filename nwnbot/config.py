@@ -158,6 +158,16 @@ CREATION_ONLY_FIELDS: frozenset[str] = frozenset({"type", "triage"})
 #: when the file is edited — a stale id is worse than none.
 DUPE_SCORER_ID: str = "stdlib-token-v1"
 
+#: The local LLM that judges duplicates. Unset means the feature is off and the
+#: token scorer is used alone -- a supported state, not a broken one.
+#: llama.cpp on this box; see windows/run-llama.ps1.
+ENV_LLM_BASE_URL = "NWNBOT_LLM_BASE_URL"
+#: Pinned in the environment rather than discovered, so swapping the model shows
+#: up as a visible config change instead of a silent change in behaviour.
+ENV_LLM_MODEL = "NWNBOT_LLM_MODEL"
+ENV_LLM_API_KEY = "NWNBOT_LLM_API_KEY"
+ENV_LLM_TIMEOUT = "NWNBOT_LLM_TIMEOUT"
+
 # --------------------------------------------------------------------------
 # Duplicate detection — [b9-dupes], answered by review item [r6]
 #
@@ -636,6 +646,10 @@ __all__ = [
     "BUGS_ITEM_TYPE",
     "CREATION_ONLY_FIELDS",
     "DUPE_SCORER_ID",
+    "ENV_LLM_BASE_URL",
+    "ENV_LLM_MODEL",
+    "ENV_LLM_API_KEY",
+    "ENV_LLM_TIMEOUT",
     "ConfigError",
     "DEFAULT_DB_PATH",
     "DEFAULT_PLAYERS_PATH",

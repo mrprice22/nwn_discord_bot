@@ -418,6 +418,39 @@ def check_images(env: Mapping[str, str]) -> Check:
                  f"{store.public_base_url}")
 
 
+def check_llm(env: Mapping[str, str]) -> Check:
+    """Whether the duplicate judge will answer, and which model answered.
+
+    A warning, never a failure: the bot is useful without it and falls back to
+    the token scorer. But it names the model, because a swapped or moved model
+    is otherwise a silent change in how duplicates are judged -- and it is the
+    difference between a one-line fix and a debugging session.
+    """
+    from nwnbot import llm as _llm
+
+    client = _llm.from_env(env)
+    if client is None:
+        return Check("llm", "warn",
+                     f"no {cfg.ENV_LLM_BASE_URL} — duplicate judging falls back "
+                     f"to the token scorer alone")
+    try:
+        models = client.models()
+    except _llm.LlmUnavailable as exc:
+        return Check("llm", "warn",
+                     f"{client.base_url} did not answer ({exc}); the token "
+                     f"scorer will be used alone. Start it with the "
+                     f"'Bots - start' shortcut.")
+    if not models:
+        return Check("llm", "warn", f"{client.base_url} is up but serving no model")
+    pinned = client.model
+    if pinned and pinned not in models:
+        return Check("llm", "fail",
+                     f"{cfg.ENV_LLM_MODEL} is {pinned!r} but the server is "
+                     f"serving {models}. Judging would silently use a different "
+                     f"model than the one recorded on every suggestion.")
+    return Check("llm", "ok", f"{client.base_url} answering as {models[0]}")
+
+
 def cmd_doctor(args: argparse.Namespace, env: Mapping[str, str],
                out: Any) -> int:
     world = load_fixture(args.fixture) if args.fixture else None
@@ -447,6 +480,7 @@ def cmd_doctor(args: argparse.Namespace, env: Mapping[str, str],
     checks.append(check_tag_map(mapping, forum, source))
     checks.append(check_players(getattr(args, "players", None)))
     checks.append(check_images(env))
+    checks.append(check_llm(env))
 
     seed_to = getattr(args, "seed_players", None)
     if seed_to:
